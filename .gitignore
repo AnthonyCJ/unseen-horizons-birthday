@@ -1,0 +1,14 @@
+node_modules/
+.next/
+out/
+coverage/
+
+.env
+.env.*
+*.log
+*.local.*
+PROJECT_STATE.local.md
+
+.DS_Store
+Thumbs.db
+desktop.ini
