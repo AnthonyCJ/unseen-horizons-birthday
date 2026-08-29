@@ -10,7 +10,7 @@
     "build": "next build",
     "preview": "node scripts/serve-static.mjs out",
     "lint": "eslint .",
-    "test": "node --test tests/source/access-gate.test.mjs tests/source/v38-invariants.test.mjs",
+    "test": "node --test tests/source/access-gate.test.mjs tests/source/v38-invariants.test.mjs tests/source/page04-v40.test.mjs tests/source/v41-visual-rhythm.test.mjs",
     "test:export": "node --test tests/export/static-export.test.mjs",
     "check": "npm run lint && npm test && npm run build && npm run test:export",
     "verify:private-key": "node scripts/verify-private-key.mjs"

@@ -27,7 +27,8 @@ test("exports a neutral static shell and neutral 404 page", async () => {
   }
 
   assert.match(index, /Field Notes/);
-  assert.match(index, /入口暂不可用/);
+  assert.match(index, /正在展开这份小手记/);
+  assert.doesNotMatch(index, /入口暂不可用/);
   assert.match(notFound, /页面不存在/);
   await stat(new URL(".nojekyll", outRoot));
   await stat(new URL("robots.txt", outRoot));

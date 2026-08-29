@@ -7,15 +7,26 @@ const BirthdayExperience = lazy(() => import("./BirthdayExperience"));
 
 type GateState = "checking" | "denied" | "authorized";
 
-function NeutralEntrance({ checking = false }: { checking?: boolean }) {
+function EntranceLoading() {
   return (
-    <main className="access-shell" aria-busy={checking}>
+    <main className="experience opening-experience" aria-busy="true">
+      <div className="opening-mark" role="status" aria-live="polite">
+        <span className="opening-dot" aria-hidden="true" />
+        <span>正在展开这份小手记</span>
+      </div>
+    </main>
+  );
+}
+
+function NeutralEntrance() {
+  return (
+    <main className="access-shell">
       <section className="access-card" aria-labelledby="access-title">
         <p className="access-eyebrow">Field Notes</p>
         <h1 className="access-title" id="access-title">入口暂不可用</h1>
         <p className="access-copy">请检查你收到的完整地址后重试。</p>
         <p className="access-status" role="status" aria-live="polite">
-          {checking ? "正在确认入口…" : "未找到可用入口"}
+          未找到可用入口
         </p>
       </section>
     </main>
@@ -54,12 +65,11 @@ export default function Home() {
     };
   }, []);
 
-  if (gateState !== "authorized") {
-    return <NeutralEntrance checking={gateState === "checking"} />;
-  }
+  if (gateState === "checking") return <EntranceLoading />;
+  if (gateState === "denied") return <NeutralEntrance />;
 
   return (
-    <Suspense fallback={<NeutralEntrance checking />}>
+    <Suspense fallback={<EntranceLoading />}>
       <BirthdayExperience />
     </Suspense>
   );

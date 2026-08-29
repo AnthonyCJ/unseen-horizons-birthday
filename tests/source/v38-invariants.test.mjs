@@ -11,7 +11,7 @@ const publicAssets = new Map([
   ["sky-castle-ocarina.mp3", "b007e7aa8aaec9f1fed9098ecab62c58b1e3daa1e8ee6a855ad3dd4991d0cecc"],
 ]);
 
-test("preserves the V38 timing, navigation, transition, and volume constants", async () => {
+test("preserves protected timing, navigation, transition, and volume constants", async () => {
   const source = await readFile(experiencePath, "utf8");
 
   for (const invariant of [
@@ -22,9 +22,10 @@ test("preserves the V38 timing, navigation, transition, and volume constants", a
     "const LIGHT_INITIAL_DURATION_MS = 13900;",
     "const LIGHT_DEPARTURE_MS = 1400;",
     "const STANDARD_VOLUME = 0.841;",
-    "const FOCUS_VOLUME = 0.668;",
+    "const FOCUS_VOLUME = 0.6;",
     "const FINALE_VOLUME = 1;",
-    "const ARTWORK_TRANSITION = { exit: 480, paper: 120, enter: 980 } as const;",
+    "const STANDARD_TRANSITION = { exit: 320, paper: 180, enter: 1000 } as const;",
+    "const ARTWORK_TRANSITION = { exit: 660, paper: 180, enter: 1320 } as const;",
     "if (target === 1 && current !== 0) return;",
     'label="← 回到封面"',
     "onClick={restartJourney}",
