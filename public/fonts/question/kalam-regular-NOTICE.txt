@@ -1,0 +1,5 @@
+Copyright (c) 2014 Indian Type Foundry (info@indiantypefoundry.com)
+
+Kalam Regular 2.001
+Source: https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/kalam/Kalam-Regular.ttf
+SIL OFL 1.1. Full-glyph WOFF2 derivative renamed to Birthday Question Latin. Outlines, cmap and advance metrics verified unchanged. No glyphs removed.

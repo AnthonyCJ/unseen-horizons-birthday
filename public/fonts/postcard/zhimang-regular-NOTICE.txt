@@ -1,0 +1,5 @@
+Copyright 2018 The ZhiMangXing Project Authors (https://github.com/googlefonts/zhimangxing)
+
+志莽行书 2.001
+Source: https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/zhimangxing/ZhiMangXing-Regular.ttf
+SIL OFL 1.1. Full-glyph WOFF2 derivative renamed to Birthday Postcard Ink. Outlines, cmap and advance metrics verified unchanged. No glyphs removed.

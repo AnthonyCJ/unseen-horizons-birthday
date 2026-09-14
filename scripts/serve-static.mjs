@@ -1,21 +1,29 @@
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { extname, resolve, sep } from "node:path";
 import { createServer } from "node:http";
+import { ACCESS_KEY_SHA256 } from "../lib/access-gate.mjs";
 
 const root = resolve(process.argv[2] ?? "out");
 const basePath = "/unseen-horizons-birthday";
 const port = Number.parseInt(process.env.PORT ?? "4173", 10);
+const testEntrance = process.argv.includes("--test-key");
+const reducedMotion = testEntrance && process.argv.includes("--reduced-motion");
+const testKey = "birthday_review_2026_local_test0";
+const testDigest = createHash("sha256").update(testKey).digest("hex");
 
 const contentTypes = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
   [".jpg", "image/jpeg"],
+  [".png", "image/png"],
   [".js", "text/javascript; charset=utf-8"],
   [".json", "application/json; charset=utf-8"],
   [".map", "application/json; charset=utf-8"],
   [".mp3", "audio/mpeg"],
   [".svg", "image/svg+xml"],
   [".txt", "text/plain; charset=utf-8"],
+  [".ttf", "font/ttf"],
   [".woff", "font/woff"],
   [".woff2", "font/woff2"],
 ]);
@@ -68,6 +76,20 @@ const server = createServer((request, response) => {
     "Cache-Control": "no-store",
     "Content-Type": contentTypes.get(extname(result.file).toLowerCase()) ?? "application/octet-stream",
   };
+  // A synthetic entrance is available only in explicitly requested loopback
+  // review responses. Never rewrite the build or expose a production key.
+  const extension = extname(result.file).toLowerCase();
+  if (testEntrance && result.status === 200 && [".html", ".js", ".css"].includes(extension)) {
+    let body = readFileSync(result.file, "utf8");
+    if (extension === ".js") body = body.replaceAll(ACCESS_KEY_SHA256, testDigest);
+    if (reducedMotion) {
+      if (extension === ".css") body = body.replace(/@media\s*\(prefers-reduced-motion\s*:\s*reduce\)/g, "@media all");
+      if (extension === ".html") body = body.replace("<head>", '<head><script>const originalMatchMedia=window.matchMedia.bind(window);window.matchMedia=(q)=>{const m=originalMatchMedia(q);return q.includes("prefers-reduced-motion")?{matches:true,media:q,addEventListener:m.addEventListener.bind(m),removeEventListener:m.removeEventListener.bind(m)}:m;};</script>');
+    }
+    response.writeHead(200, { ...headers, "Content-Length": Buffer.byteLength(body) });
+    response.end(request.method === "HEAD" ? undefined : body);
+    return;
+  }
   const rangeMatch = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? "");
 
   if (rangeMatch) {
@@ -95,5 +117,5 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Static preview: http://127.0.0.1:${port}${basePath}/`);
+  console.log(`Static preview${testEntrance ? " (synthetic entrance)" : ""}: http://127.0.0.1:${port}${basePath}/${testEntrance ? `?preview=1#/open/${testKey}` : ""}`);
 });

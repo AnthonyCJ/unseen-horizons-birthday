@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v6
@@ -36,6 +36,15 @@ jobs:
 
       - name: Run checks and build static export
         run: npm run check
+
+      - name: Verify question-card font permission and resources
+        run: npm run verify:question-fonts
+
+      - name: Install test browsers
+        run: npx playwright install --with-deps chromium webkit firefox
+
+      - name: Check actual question-card input and PNG downloads in three browsers
+        run: npm run test:browser
 
       - name: Upload static export
         uses: actions/upload-pages-artifact@v4

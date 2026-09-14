@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./question-note.css";
 
 export const metadata: Metadata = {
   title: "Field Notes",

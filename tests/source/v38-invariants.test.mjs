@@ -5,7 +5,7 @@ import test from "node:test";
 
 const experiencePath = new URL("../../app/BirthdayExperience.tsx", import.meta.url);
 const publicAssets = new Map([
-  ["healing-002.jpg", "605f3cbaa46646230bfbff48ac0000aa460551e4d163ba2a504a8e313917534e"],
+  ["healing-003.jpg", "87a9249d1d5efbc0717cd1dea09bb5644f1c6926260a9795abe098dda5c7d49b"],
   ["healing-004.jpg", "e1e936b4137ce5218dd585c577e307eaa5b275dc1008d3fef1f31ed79141bdc3"],
   ["healing-008.jpg", "b2a55f707f2fbf13580aaae8909808b163a11492ebef8171b2a206da13157a65"],
   ["sky-castle-ocarina.mp3", "b007e7aa8aaec9f1fed9098ecab62c58b1e3daa1e8ee6a855ad3dd4991d0cecc"],

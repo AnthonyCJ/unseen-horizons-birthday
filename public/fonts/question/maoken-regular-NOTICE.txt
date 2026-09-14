@@ -1,0 +1,7 @@
+Copyright 2025 Luke036（Github: https://github.com/scott0107000） and Contributors：ZERO子（Github: https://github.com/Skr-ZERO）
+
+猫啃网
+
+猫啃硬笔楷书 0.20
+Source: https://raw.githubusercontent.com/maoken-fonts/MaokenYingBiKaiShuJ/862082834f1f8686db122f20bebc69d2bd787467/MaokenYingBiKaiShuJ_0.20.ttf
+SIL OFL 1.1. Full-glyph WOFF2 derivative renamed to Birthday Question Kai. Outlines, cmap and advance metrics verified unchanged. No glyphs removed.

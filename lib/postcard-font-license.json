@@ -1,0 +1,18 @@
+{
+  "family": "龙藏体 / Long Cang",
+  "version": [
+    "Version 2.001"
+  ],
+  "derivativeFamily": "Birthday Postcard LongCang",
+  "cssFamily": "Birthday Postcard Ink",
+  "file": "public/fonts/postcard/longcang-regular.woff2",
+  "license": "public/fonts/postcard/longcang-regular-OFL.txt",
+  "notice": "public/fonts/postcard/longcang-regular-NOTICE.txt",
+  "embeddingAuthorized": true,
+  "evidence": "https://raw.githubusercontent.com/google/fonts/main/ofl/longcang/OFL.txt",
+  "source": "https://raw.githubusercontent.com/google/fonts/main/ofl/longcang/LongCang-Regular.ttf",
+  "sourceSha256": "e5bf2c3f24ef2327c6f136d8f73e2f9dfdf44896fdbeb35a9515f44777bb91bc",
+  "sha256": "682555c59814f6afd99d18dce5d3913c00ecf9b6281b0d368a7b32910cf50edd",
+  "outlineSha256": "7111d39d152a6c3da3ea1738857c25c32e7a914acedb2d087e5bcfd6b4871c3a",
+  "status": "Selected by the user for design B. Complete renamed WOFF2; fixed postcard text is covered by native Chinese and Latin glyphs."
+}

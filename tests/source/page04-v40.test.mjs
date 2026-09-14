@@ -1,58 +1,44 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { CLARIFYING_PROMPT } from "../../lib/clarifying-prompt.mjs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const experiencePath = new URL("../../app/BirthdayExperience.tsx", import.meta.url);
 const stylesPath = new URL("../../app/globals.css", import.meta.url);
 
-const expectedPrompt = `请围绕下面的任务先完成需求澄清。
+// Full v1.2.0 template body, excluding the source document heading and code fence.
+const expectedPromptHash = "8d0c54fb613d6ed75a254e9487dc3d2c54add78b1698d0c45b7192e4c906f557";
 
-成功条件
-在执行前形成一份我已确认的任务简报，包含：
-- 目标；
-- 必要背景与已有材料；
-- 使用场景或受众；
-- 交付内容与形式；
-- 关键约束和不可遗漏项；
-- 成功标准；
-- 已确认的选择；
-- 仍保留的假设及其可能影响。
-
-协作方式
-1. 先简要复述你对目标、背景和交付内容的理解，不重复询问我已经提供的信息。
-2. 只追问缺失且会实质影响结果的信息，按影响程度排序，每轮最多提出 5 个问题。
-3. 对影响较小的信息缺口，提出合理默认值，并明确标记为“待确认假设”。
-4. 存在会明显改变结果的多种选择时，给出 2～3 个选项，简述主要差异，并标明你的建议。
-5. 信息足够后，整理任务简报。
-
-开始条件
-给出任务简报后暂停，等我明确回复“确认开始”再执行最终任务。
-如果现有信息已经足够，请直接整理任务简报，无需为了提问而提问。
-
-任务内容
-【在这里写下你的需求】`;
-
-test("implements the approved V40 page 04 copy without changing page 02", async () => {
+test("implements the approved page 04 revision and full v1.2.0 Prompt without changing page 02", async () => {
   const source = await readFile(experiencePath, "utf8");
 
   for (const copy of [
     "For the Days Ahead",
     "想与你分享的三件小东西",
-    "一种让事情慢慢清楚的方法，一点关于注意力的体会，还有一个可以带着继续往前的问题。",
+    "一个开始，一段时间，一个问题。",
     "让 AI 先问清楚，再开始",
-    "最初的几句话可以只是一个起点，任务的轮廓会在接下来的对话里慢慢清楚起来。",
-    "Harness Self",
-    "让自己进入更清醒、更从容的状态，把更完整的注意力留给真正重要的事。",
+    "给尚未成形的想法，一个更清楚的开端。",
+    "把注意力，留给热爱的事",
     "带一个问题去远方",
-    "有些问题会让人对尚未展开的日子多一点期待。",
+    "有些问题，会让未来多一点值得期待的事。",
     "新的一岁里，有没有一个问题，你愿意带着它继续往前走？",
-    "先把它轻轻带上，再往前一点。",
+    "不必现在回答。让它陪你走一段路，",
+    "也许沿途的经历，会带来新的线索。",
+    "愿初生的灵感，",
+    "在想象里舒展翅膀；",
+    "从一个念头出发，",
+    "飞向未曾设想的远方。",
+    "愿求索有回响，",
+    "停歇有晴朗；",
+    "愿那些值得长久追问的问题，",
+    "总能遇见你清醒、从容的目光。",
   ]) {
     assert.ok(source.includes(copy), `Missing approved page 04 copy: ${copy}`);
   }
 
-  const promptMatch = source.match(/const CLARIFYING_PROMPT = `([\s\S]*?)`;/);
-  assert.equal(promptMatch?.[1], expectedPrompt);
+  assert.equal(createHash("sha256").update(CLARIFYING_PROMPT).digest("hex"), expectedPromptHash);
+  assert.ok(CLARIFYING_PROMPT.endsWith("【在这里写下你的需求；已有背景、材料、约束和偏好可一并提供，无需预先填满简报。】"));
 
   assert.ok(source.includes('{renderMeta("A Light for Today", 180)}'));
   assert.ok(source.includes('aria-label="十一月十三日">11·13</span>'));
@@ -75,7 +61,7 @@ test("uses the approved overview and focus-reader interaction without adding com
     "inert={activeFinding !== null}",
     "findingReaderScrollRef",
     "if (event.key === \"Escape\")",
-    "findingButtonRefs.current[triggerIndex]?.focus()",
+    "findingButtonRefs.current[triggerIndex]?.focus({ preventScroll: true })",
     "findingReaderCloseTimer.current = window.setTimeout(finishClosing, FINDING_READER_CLOSE_MS);",
     "body.style.position = \"fixed\"",
     "data-keyboard-nav-block",
@@ -84,10 +70,11 @@ test("uses the approved overview and focus-reader interaction without adding com
     "inert={!promptExpanded}",
     'className={`prompt-drawer ${promptExpanded ? "is-open" : ""}`}',
     "if (current === 3 && target !== 3) resetFindingReader();",
-    "setDiscoveriesReturning(current === 4);",
+    "resetSceneReveals();",
+    "resetReaderReveals();",
     "setActiveFinding(null);",
     "setPromptExpanded(false);",
-    'style={{ "--action-delay": "9000ms" } as CSSProperties}',
+    'style={{ "--action-delay": "6200ms" } as CSSProperties}',
   ]) {
     assert.ok(source.includes(interaction), `Missing page 04 interaction: ${interaction}`);
   }
@@ -101,7 +88,9 @@ test("uses the approved overview and focus-reader interaction without adding com
     /className="finding-toggle"[\s\S]*?type="button"[\s\S]*?aria-haspopup="dialog"/,
   );
   assert.doesNotMatch(source, /discoveriesVisited/);
-  assert.doesNotMatch(source, /<(?:input|textarea)\b/i);
+  assert.match(source, /<InspirationNote note=\{inspiration\}/);
+  assert.match(source, /textarea, input, select, \[contenteditable\]/);
+  assert.match(source, /下一件：/);
   assert.doesNotMatch(source, /上一条|下一条|阅读进度|已读|顺序解锁/);
   assert.match(source, /copyStatus === "success" \? "已复制" : "复制完整 Prompt"/);
 });
@@ -220,7 +209,7 @@ test("uses the approved artwork rhythm, finale mix, and smile trajectory", async
   assert.match(styles, /artwork-scene-exit 660ms/);
   assert.match(styles, /artwork-scene-enter 1320ms/);
   assert.match(styles, /artwork-mobile-art-settle 1320ms/);
-  assert.match(styles, /\.discoveries-scene\.is-returning[^}]*animation-duration:\s*720ms/s);
+  assert.match(styles, /\.reading-recalled[^}]*animation:\s*none !important/s);
   assert.match(styles, /\.finale-smile-mark \{[^}]*2160ms 9800ms[^}]*cubic-bezier\(0\.4, 0, 0\.2, 1\)/s);
   assert.match(styles, /from \{ transform: translateY\(-0\.22em\) rotate\(0deg\); \}/);
   assert.match(styles, /to \{ transform: translateY\(0\.14em\) rotate\(90deg\); \}/);
@@ -250,7 +239,7 @@ test("locks the page 01 offset, question typography, equal spacing, and neutral 
   assert.match(styles, /\.finding-detail-question > p \{ margin:\s*0 !important; \}/);
   assert.match(
     styles,
-    /\.finding-question \{[^}]*font-family:\s*"Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;[^}]*font-weight:\s*500;[^}]*font-size:\s*clamp\(1\.12rem, 1\.32vw, 1\.28rem\)[^}]*line-height:\s*1\.78[^}]*letter-spacing:\s*0\.015em/s,
+    /\.finding-question \{[^}]*font-family:\s*"Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", serif;[^}]*font-weight:\s*500;[^}]*font-size:\s*clamp\(1\.25rem, 2\.05vw, 1\.8rem\)[^}]*line-height:\s*1\.78[^}]*letter-spacing:\s*0\.015em/s,
   );
   assert.doesNotMatch(styles, /\.finding-question-closing\s*\{/);
   assert.match(styles, /\.finding-harness-closing \{[^}]*clamp\(1\.7rem, 2\.6vw, 2\.35rem\)/);

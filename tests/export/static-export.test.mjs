@@ -23,7 +23,7 @@ test("exports a neutral static shell and neutral 404 page", async () => {
 
   for (const html of [index, notFound]) {
     assert.match(html, /<meta name="robots" content="[^"]*noindex[^"]*nofollow[^"]*"/);
-    assert.doesNotMatch(html, /生日快乐|Charlotte|11·13|XCJ|sky-castle-ocarina|healing-00[248]/);
+    assert.doesNotMatch(html, /生日快乐|Charlotte|11·13|XCJ|sky-castle-ocarina|healing-00[348]/);
   }
 
   assert.match(index, /Field Notes/);
@@ -42,4 +42,9 @@ test("contains only static files and no production source maps", async () => {
   assert.equal(paths.some((path) => /(^|\/)(server|worker)(\/|$)/i.test(path)), false);
   assert.equal(paths.some((path) => /hosting\.json|\.env|handoff|PROJECT_STATE/i.test(path)), false);
   assert.ok(paths.includes("assets/sky-castle-ocarina.mp3"));
+  assert.equal(paths.some((path) => /inspiration-config|cloud-sync|\.sqlite/i.test(path)), false);
+  for (const file of files.filter((file) => file.pathname.endsWith(".js"))) {
+    const script = await readFile(file, "utf8");
+    assert.doesNotMatch(script, /inspiration-config\.json|共享保存|用当前草稿替换/);
+  }
 });

@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>未知风光 · 明信片</title>
+  <style>
+    @font-face {
+      font-family: "Birthday Postcard Ink";
+      src: url("/unseen-horizons-birthday/fonts/postcard/longcang-regular.woff2") format("woff2");
+      font-style: normal; font-weight: 400; font-display: block;
+    }
+    html, body { margin: 0; padding: 0; background: #e8e4df; }
+    body { width: 100%; max-width: 1800px; }
+    #birthday-postcard-note {
+      position: relative; width: 100%; aspect-ratio: 3 / 2; overflow: hidden;
+      color-scheme: only light; container-type: inline-size;
+      background: linear-gradient(135deg, #eeebe6, #e5e0db);
+    }
+    #birthday-postcard-note * { box-sizing: border-box; }
+    .postcard-card {
+      position: absolute; isolation: isolate; left: 2%; top: 1.8%; width: 96%;
+      aspect-ratio: 3 / 2; container-type: inline-size; border-radius: .09cqw;
+    }
+    .postcard-card::before {
+      content: ""; position: absolute; inset: 0; border-radius: inherit;
+      transform: translate(.1cqw, .24cqw);
+      background: linear-gradient(110deg, #dbd0c2, #c9bdaf);
+      box-shadow: .04cqw .1cqw .1cqw #68564926,
+        .13cqw .36cqw .55cqw #70625728, .25cqw .58cqw 1cqw #7062570c;
+    }
+    .postcard-sheet {
+      position: relative; isolation: isolate; width: 100%; aspect-ratio: 3 / 2;
+      overflow: hidden; background: #f3ebe2; color: #514e60; font-synthesis: none;
+      font-family: "Birthday Postcard Ink", cursive; border-radius: inherit;
+    }
+    .postcard-sheet::after {
+      content: ""; position: absolute; z-index: 3; inset: 0; pointer-events: none;
+      border-radius: inherit;
+      box-shadow: inset .06cqw .065cqw .025cqw #fffef9c4,
+        inset -.035cqw -.045cqw .04cqw #99857542;
+    }
+    .postcard-paper {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 94% 5%, #e7e0ea 0%, transparent 66%),
+        radial-gradient(ellipse at 1% 99%, #f4e2d9 0%, transparent 56%);
+    }
+    .postcard-paper::after {
+      content: ""; position: absolute; inset: 0; opacity: .22; mix-blend-mode: multiply;
+      background-image:
+        repeating-linear-gradient(0deg, transparent 0 .407608696cqw, #74644b08 .407608696cqw .543478261cqw),
+        repeating-linear-gradient(90deg, transparent 0 .679347826cqw, #ffffff35 .679347826cqw .815217391cqw);
+    }
+    .postcard-photo {
+      position: absolute; z-index: 1; width: 40%; height: 82%; left: 5.8%; top: 8%;
+      margin: 0; padding: 1.35cqw 1.35cqw 6.5cqw; background: #fffdf7;
+      transform: rotate(-2deg);
+      box-shadow: .06cqw .1cqw .16cqw #6e5b4b0d, .15cqw .5cqw 1.25cqw #5e514918;
+    }
+    .postcard-art { width: 100%; height: 100%; overflow: hidden; background: #dbe8ee; }
+    .postcard-art img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 63%; }
+    .postcard-title {
+      position: absolute; bottom: 1.2cqw; left: 3cqw; margin: 0;
+      font: 400 3.8cqw/1.25 "Birthday Postcard Ink", cursive; color: #595869;
+    }
+    .postcard-letter { position: absolute; z-index: 1; left: 51.5%; top: 34%; width: 44%; height: 56%; }
+    .postcard-note p { margin: 0; font: 400 3.65cqw/1.68 "Birthday Postcard Ink", cursive; letter-spacing: 0; }
+    .postcard-note .postcard-name { font-size: 3.8cqw; line-height: 1.55; white-space: nowrap; }
+    .postcard-recipient { display: inline-block; }
+    .postcard-note .postcard-wish { margin-top: 3.45cqw; }
+    .postcard-wish-line { display: block; white-space: nowrap; }
+    /* Match the page-05 smile at the 736px desktop review scale. It keeps its
+       own system face and size while the handwriting becomes more prominent. */
+    .postcard-smile {
+      display: inline-block; position: relative; top: .06em; margin-inline-start: .28em;
+      font: 2.36cqw/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0; vertical-align: -.16em; color: #687080;
+    }
+    /* The accepted page-05 rendering advances the colon by .5em before the
+       full-width parenthesis. Browser punctuation trimming differs: the PNG
+       renderer used 1em and added .5em between the eyes and mouth after rotation.
+       Give the original glyphs separate boxes so that spacing stays explicit. */
+    .postcard-smile-mark {
+      display: inline-block; position: relative; width: 1.5em; height: 1em;
+      transform: translateY(.14em) rotate(90deg); transform-origin: 50% 50%;
+    }
+    .postcard-smile-mark > span {
+      position: absolute; top: 0; width: 1em; height: 1em;
+      font: inherit; line-height: 1; text-align: left;
+      font-kerning: none; text-spacing-trim: space-all;
+    }
+    .postcard-smile-eyes { left: 0; }
+    .postcard-smile-mouth { left: .5em; }
+    .postcard-signature {
+      position: absolute; top: 22.75cqw; left: var(--recipient-center, 70%);
+      transform: translateX(-50%); margin: 0; white-space: nowrap;
+      font: 400 4.1cqw/1.2 "Birthday Postcard Ink", cursive; color: #514e60;
+    }
+    .postcard-date {
+      position: absolute; z-index: 1; top: 7%; right: 7%; width: 11.4cqw; aspect-ratio: 1;
+      border: .135869565cqw solid #a58a93; border-radius: 50%; color: #886874;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: .6cqw; transform: rotate(8deg);
+    }
+    .postcard-date-year { font: 1.5cqw/1 Georgia, "Times New Roman", serif; letter-spacing: .12em; }
+    .postcard-date-day { font: 400 2.5cqw/1.1 Georgia, "Times New Roman", serif; }
+    .postcard-date::after { content: ""; width: 3.6cqw; height: .135869565cqw; background: #a58a9380; }
+  </style>
+</head>
+<body>
+  <div id="birthday-postcard-note">
+    <div class="postcard-card">
+    <article class="postcard-sheet" aria-label="未知风光 · 生日来信">
+      <div class="postcard-paper" aria-hidden="true"></div>
+      <figure class="postcard-photo">
+        <div class="postcard-art"><img src="/unseen-horizons-birthday/assets/healing-008.jpg" alt="蓝天下，女孩望向远方，花海与蝴蝶围绕身旁。"></div>
+        <figcaption class="postcard-title">未知风光</figcaption>
+      </figure>
+      <div class="postcard-letter">
+        <div class="postcard-note">
+          <p class="postcard-name">生日快乐，<span class="postcard-recipient">Charlotte</span>。</p>
+          <p class="postcard-wish"><span class="postcard-wish-line">愿你一路保有好奇，</span><span class="postcard-wish-line">也常有惊喜。<span class="postcard-smile" role="img" aria-label="笑脸"><span class="postcard-smile-mark" aria-hidden="true"><span class="postcard-smile-eyes">：</span><span class="postcard-smile-mouth">）</span></span></span></span></p>
+        </div>
+        <p class="postcard-signature">XCJ</p>
+      </div>
+      <time class="postcard-date" datetime="2026-11-13" aria-label="2026年11月13日">
+        <span class="postcard-date-year">2026</span><span class="postcard-date-day">11.13</span>
+      </time>
+    </article>
+    </div>
+  </div>
+  <script>
+    const sheet = document.querySelector(".postcard-sheet");
+    const letter = document.querySelector(".postcard-letter");
+    const recipient = document.querySelector(".postcard-recipient");
+    function alignSignature() {
+      const parent = letter.getBoundingClientRect();
+      const name = recipient.getBoundingClientRect();
+      letter.style.setProperty("--recipient-center", `${name.left + name.width / 2 - parent.left}px`);
+    }
+    new ResizeObserver(alignSignature).observe(sheet);
+    Promise.all([
+      document.fonts.load('400 68.4px "Birthday Postcard Ink"', '未知风光生日快乐，Charlotte。愿你一路保有好奇，也常有惊喜。XCJ'),
+      ...Array.from(document.images, image => image.decode())
+    ]).then(([faces]) => {
+      if (faces.length !== 1) throw new Error("Postcard handwriting did not load");
+      requestAnimationFrame(() => {
+        alignSignature();
+        sheet.dataset.fontFaces = faces.map(face => `${face.family}:${face.weight}:${face.status}`).join(";");
+        sheet.dataset.fontsReady = "true";
+      });
+    }).catch(error => { sheet.dataset.fontsReady = "error"; sheet.dataset.renderError = String(error); });
+  </script>
+</body>
+</html>

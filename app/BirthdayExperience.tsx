@@ -2,8 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, SyntheticEvent } from "react";
+import PostcardPreview from "./PostcardPreview";
+import { useReadReveals } from "./useReadReveals";
+import { CLARIFYING_PROMPT } from "../lib/clarifying-prompt.mjs";
+import { useQuestionDraft } from "./useQuestionDraft";
+import InspirationNote from "./InspirationNote";
+import { useReadingProgress } from "./useReadingProgress";
 
 const PUBLIC_BASE_PATH = "/unseen-horizons-birthday";
+const TITLE_CHARACTER_STEP_MS = 160;
+const CHARACTER_FADE_MS = 1100;
 const BGM_SOURCE = `${PUBLIC_BASE_PATH}/assets/sky-castle-ocarina.mp3`;
 const OCARINA_ENTRY_SECONDS = 20.6;
 const LETTER_GREETING_DELAY_MS = 5000;
@@ -29,52 +37,28 @@ const FINDING_READER_CLOSE_MS = 780;
 const STANDARD_TRANSITION = { exit: 320, paper: 180, enter: 1000 } as const;
 const ARTWORK_TRANSITION = { exit: 660, paper: 180, enter: 1320 } as const;
 const IMAGE_ASSETS = [
-  `${PUBLIC_BASE_PATH}/assets/healing-002.jpg`,
+  `${PUBLIC_BASE_PATH}/assets/healing-003.jpg`,
   `${PUBLIC_BASE_PATH}/assets/healing-004.jpg`,
   `${PUBLIC_BASE_PATH}/assets/healing-008.jpg`,
 ] as const;
 
 const screens = ["封面", "点亮", "祝福", "三件小东西", "远方"] as const;
 
-const CLARIFYING_PROMPT = `请围绕下面的任务先完成需求澄清。
-
-成功条件
-在执行前形成一份我已确认的任务简报，包含：
-- 目标；
-- 必要背景与已有材料；
-- 使用场景或受众；
-- 交付内容与形式；
-- 关键约束和不可遗漏项；
-- 成功标准；
-- 已确认的选择；
-- 仍保留的假设及其可能影响。
-
-协作方式
-1. 先简要复述你对目标、背景和交付内容的理解，不重复询问我已经提供的信息。
-2. 只追问缺失且会实质影响结果的信息，按影响程度排序，每轮最多提出 5 个问题。
-3. 对影响较小的信息缺口，提出合理默认值，并明确标记为“待确认假设”。
-4. 存在会明显改变结果的多种选择时，给出 2～3 个选项，简述主要差异，并标明你的建议。
-5. 信息足够后，整理任务简报。
-
-开始条件
-给出任务简报后暂停，等我明确回复“确认开始”再执行最终任务。
-如果现有信息已经足够，请直接整理任务简报，无需为了提问而提问。
-
-任务内容
-【在这里写下你的需求】`;
-
 const findings = [
   {
+    kind: "method", label: "一张方法纸条",
     title: "让 AI 先问清楚，再开始",
-    summary: "最初的几句话可以只是一个起点，任务的轮廓会在接下来的对话里慢慢清楚起来。",
+    summary: "给尚未成形的想法，一个更清楚的开端。",
   },
   {
-    title: "Harness Self",
-    summary: "让自己进入更清醒、更从容的状态，把更完整的注意力留给真正重要的事。",
+    kind: "attention", label: "一页关于专注的体会",
+    title: "把注意力，留给热爱的事",
+    summary: "给在意的事，留一段完整的时间。",
   },
   {
+    kind: "question", label: "一张可以带走的问题签",
     title: "带一个问题去远方",
-    summary: "有些问题会让人对尚未展开的日子多一点期待。",
+    summary: "有些问题，会让未来多一点值得期待的事。",
   },
 ] as const;
 
@@ -84,7 +68,6 @@ const FINDING_QUESTION_SEGMENTS = [
   "有没有一个问题，",
   "你愿意带着它继续往前走？",
 ] as const;
-const FINDING_QUESTION_LEAD_DELAY_MS = 1180;
 const FINDING_QUESTION_BASE_DELAY_MS = 2500;
 const FINDING_QUESTION_STEP_MS = 175;
 const FINDING_QUESTION_AFTER_DELAY_MS = 8300;
@@ -114,22 +97,40 @@ function useReducedMotion() {
 function CharacterReveal({
   text,
   baseDelay = 0,
-  step = 120,
+  step = TITLE_CHARACTER_STEP_MS,
+  wrapAfter = 0,
+  unfoldDuration,
+  fadeDuration = CHARACTER_FADE_MS,
 }: {
   text: string;
   baseDelay?: number;
   step?: number;
+  wrapAfter?: number;
+  unfoldDuration?: number;
+  fadeDuration?: number;
 }) {
+  const characters = Array.from(text);
+  const characterStep = unfoldDuration === undefined
+    ? step
+    : Math.max(0, (unfoldDuration - fadeDuration) / Math.max(1, characters.length - 1));
+  const groups = wrapAfter
+    ? [characters.slice(0, wrapAfter), characters.slice(wrapAfter)]
+    : [characters];
+
   return (
-    <span className="character-reveal" aria-label={text}>
-      {Array.from(text).map((character, index) => (
-        <span
-          aria-hidden="true"
-          className="character"
-          key={`${character}-${index}`}
-          style={{ "--char-delay": `${baseDelay + index * step}ms` } as CSSProperties}
-        >
-          {character === " " ? "\u00a0" : character}
+    <span className="character-reveal" aria-label={text} style={{ "--char-duration": `${fadeDuration}ms` } as CSSProperties}>
+      {groups.map((group, groupIndex) => (
+        <span className={wrapAfter ? "title-unit" : undefined} key={groupIndex}>
+          {group.map((character, index) => (
+            <span
+              aria-hidden="true"
+              className="character"
+              key={`${character}-${index}`}
+              style={{ "--char-delay": `${baseDelay + (index + groupIndex * wrapAfter) * characterStep}ms` } as CSSProperties}
+            >
+              {character === " " ? "\u00a0" : character}
+            </span>
+          ))}
         </span>
       ))}
     </span>
@@ -169,16 +170,21 @@ function FindingQuestionReveal() {
 function Reveal({
   children,
   delay,
+  duration,
   className = "",
 }: {
   children: ReactNode;
   delay: number;
+  duration?: number;
   className?: string;
 }) {
   return (
     <span
       className={`phrase-reveal ${className}`}
-      style={{ "--reveal-delay": `${delay}ms` } as CSSProperties}
+      style={{
+        "--reveal-delay": `${delay}ms`,
+        ...(duration === undefined ? {} : { "--reveal-duration": `${duration}ms` }),
+      } as CSSProperties}
     >
       {children}
     </span>
@@ -337,9 +343,17 @@ export default function BirthdayExperience() {
   const [findingReaderClosing, setFindingReaderClosing] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(false);
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
-  const [discoveriesReturning, setDiscoveriesReturning] = useState(false);
+  const [finaleStarted, setFinaleStarted] = useState(false);
+  const [postcardOpen, setPostcardOpen] = useState(false);
+  const reading = useReadingProgress(current, activeFinding, findingReaderVisible);
+  const inspiration = useQuestionDraft();
   const [letterSyncAdjustmentMs, setLetterSyncAdjustmentMs] = useState(0);
   const reducedMotion = useReducedMotion();
+  const sceneReveals = useReadReveals(current === 2 ? "letter" : current === 3 ? "discoveries" : null, assetsReady, reducedMotion);
+  const readerReveals = useReadReveals(activeFinding === null ? null : `finding-${activeFinding}`, findingReaderVisible || findingReaderClosing, reducedMotion);
+  const resetSceneReveals = sceneReveals.reset;
+  const resetReaderReveals = readerReveals.reset;
+  const finaleMessageRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const inputMode = useRef<InputMode>("pointer");
@@ -438,11 +452,7 @@ export default function BirthdayExperience() {
 
       if (current === 3 && target !== 3) resetFindingReader();
       if (target === 2) setLetterSyncAdjustmentMs(0);
-      if (target === 3) {
-        // Only the finale's back path is a quick revisit. Moving forward from
-        // page 03 must remount page 04 with its complete staggered reveal.
-        setDiscoveriesReturning(current === 4);
-      }
+      if (target === 4) setFinaleStarted(false);
 
       setDirection(target > current ? 1 : -1);
       if (target <= 1) setLightStage("waiting");
@@ -764,12 +774,23 @@ export default function BirthdayExperience() {
     moveTo(1);
   }, [moveTo, musicState, playMusic]);
 
+  const revisitFindings = useCallback(() => {
+    if (entryLock.current || phase !== "idle") return;
+    entryLock.current = true;
+    resetInProgress.current = false;
+    if (musicState === "idle" || musicState === "error") playMusic(false, 2400);
+    else if (musicState === "ended") playMusic(true, 2400);
+    moveTo(3);
+  }, [moveTo, musicState, phase, playMusic]);
+
   const restartJourney = useCallback(() => {
     if (phase !== "idle") return;
     resetInProgress.current = true;
     clearTimers();
     resetFindingReader();
-    setDiscoveriesReturning(false);
+    resetSceneReveals();
+    resetReaderReveals();
+    setPostcardOpen(false);
     lightSyncActive.current = false;
     if (lightSyncFrame.current !== null) {
       window.cancelAnimationFrame(lightSyncFrame.current);
@@ -810,7 +831,7 @@ export default function BirthdayExperience() {
     }
 
     moveTo(0);
-  }, [clearTimers, fadeVolume, moveTo, phase, reducedMotion, resetFindingReader]);
+  }, [clearTimers, fadeVolume, moveTo, phase, reducedMotion, resetFindingReader, resetSceneReveals, resetReaderReveals]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -849,6 +870,24 @@ export default function BirthdayExperience() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [current, moveTo, openNotebook, restartJourney]);
 
+  useEffect(() => {
+    if (current !== 4) return;
+    const target = finaleMessageRef.current?.querySelector(".finale-wish");
+    if (!target) return;
+    if (reducedMotion || window.matchMedia("(min-width: 641px)").matches) {
+      const frame = window.requestAnimationFrame(() => setFinaleStarted(true));
+      return () => window.cancelAnimationFrame(frame);
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.95)) {
+        setFinaleStarted(true);
+        observer.disconnect();
+      }
+    }, { threshold: 0.95 });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [current, reducedMotion]);
+
   const pageStatus = `第 ${current + 1} 页，共 ${screens.length} 页：${screens[current]}`;
   const phaseClass = phase === "idle" ? "" : `is-${phase}`;
   const suppressMusicControl = phase !== "idle" || current === 1;
@@ -881,7 +920,7 @@ export default function BirthdayExperience() {
       clearCopyFeedback();
 
       if (restoreFocus) {
-        window.requestAnimationFrame(() => findingButtonRefs.current[triggerIndex]?.focus());
+        window.requestAnimationFrame(() => findingButtonRefs.current[triggerIndex]?.focus({ preventScroll: true }));
       }
     };
 
@@ -941,8 +980,8 @@ export default function BirthdayExperience() {
       if (!reader) return;
 
       const focusable = Array.from(reader.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
-      )).filter((element) => !element.hasAttribute("hidden"));
+        'button:not(:disabled), textarea:not(:disabled), input:not(:disabled), select:not(:disabled), [href], [tabindex]:not([tabindex="-1"])',
+      )).filter((element) => !element.closest('[hidden], [inert], dialog:not([open])') && element.getClientRects().length > 0);
       if (focusable.length === 0) {
         event.preventDefault();
         findingReaderTitleRef.current?.focus();
@@ -965,6 +1004,7 @@ export default function BirthdayExperience() {
       return;
     }
 
+    if ((event.target as HTMLElement).closest("textarea, input, select, [contenteditable]")) return;
     const scrollArea = findingReaderScrollRef.current;
     if (!scrollArea) return;
 
@@ -1007,35 +1047,16 @@ export default function BirthdayExperience() {
   const renderFindingDetails = (index: number) => {
     if (index === 0) {
       return (
-        <div className="finding-detail finding-detail-method">
+        <div className="finding-detail finding-detail-method" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
           <p>
-            AI 会根据对话里的上下文理解任务。准备一次研究汇报、规划一趟旅行，或整理一个仍在成形的想法时，目标、背景、限制和期待，常常会在讨论里一点点补充进来。
+            这段 Prompt 用来请 AI 先理解你想做的事，把背景、期待与边界整理成一份简报，等你确认后再着手推进。
           </p>
           <p>
-            可以先请它用自己的话复述目标，整理仍需确认的关键信息，并在需要选择时提供两三个参考方向。等这些内容汇成一份任务简报，并得到你的确认，再正式开始。这一小段确认，会让目标、边界和期待逐渐清楚，也让接下来的内容更贴近你真正想要的方向。
+            念头不必一开始就很完整。研究里的疑问、生活中的计划，或一次突如其来的灵感，都可以成为对话的开端。
           </p>
           <aside className="prompt-tool" aria-labelledby="clarifying-prompt-title">
-            <div className="prompt-tool-copy">
-              <h4 id="clarifying-prompt-title">可直接使用的 Prompt</h4>
-              <p id="clarifying-prompt-description">复制后，把最后的“任务内容”换成你的具体需求即可。</p>
-            </div>
+            <h4 id="clarifying-prompt-title" className="sr-only">可直接使用的 Prompt</h4>
             <div className="prompt-actions">
-              <button
-                className="prompt-action"
-                type="button"
-                aria-expanded={promptExpanded}
-                aria-controls="clarifying-prompt-text"
-                aria-label={promptExpanded ? "收起 Prompt" : "查看完整 Prompt"}
-                onClick={() => setPromptExpanded((expanded) => !expanded)}
-              >
-                <span
-                  className={`prompt-label-stack ${promptExpanded ? "is-alternate" : ""}`}
-                  aria-hidden="true"
-                >
-                  <span>查看完整 Prompt</span>
-                  <span>收起 Prompt</span>
-                </span>
-              </button>
               <button
                 className={`prompt-action prompt-copy-action ${copyStatus === "success" ? "is-success" : ""}`}
                 type="button"
@@ -1047,11 +1068,28 @@ export default function BirthdayExperience() {
                   className={`prompt-label-stack ${copyStatus === "success" ? "is-alternate" : ""}`}
                   aria-hidden="true"
                 >
-                  <span>复制完整 Prompt</span>
+                  <span>复制 Prompt</span>
                   <span>已复制</span>
                 </span>
               </button>
+              <button
+                className="finding-text-action prompt-read-action"
+                type="button"
+                aria-expanded={promptExpanded}
+                aria-controls="clarifying-prompt-text"
+                aria-label={promptExpanded ? "收起 Prompt" : "查看完整 Prompt"}
+                onClick={() => setPromptExpanded((expanded) => !expanded)}
+              >
+                <span
+                  className={`prompt-label-stack ${promptExpanded ? "is-alternate" : ""}`}
+                  aria-hidden="true"
+                >
+                  <span>阅读全文 ↓</span>
+                  <span>收起全文 ↑</span>
+                </span>
+              </button>
             </div>
+            <p id="clarifying-prompt-description" className="prompt-usage">复制到新对话，将末尾的「任务内容」换成你的需求；简报合适后，回复「确认开始」。</p>
             <span
               className={copyStatus === "error" ? "prompt-feedback" : "sr-only"}
               id="prompt-copy-status"
@@ -1081,37 +1119,40 @@ export default function BirthdayExperience() {
               </div>
             </div>
           </aside>
+          <p className="finding-poem">
+            <span>愿初生的灵感，</span>
+            <span>在想象里舒展翅膀；</span>
+            <span>从一个念头出发，</span>
+            <span>飞向未曾设想的远方。</span>
+          </p>
         </div>
       );
     }
 
     if (index === 1) {
       return (
-        <div className="finding-detail finding-detail-harness">
+        <div className="finding-detail finding-detail-harness" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
           <p>
-            Harness Self，或许可以理解为：逐渐找到适合自己的方式，照看自己的状态，也为自己在意的事情保留足够的注意力。注意力保护，是其中一条可以慢慢尝试的路径。
+            有些想法，需要一段安静的时间，才会显出自己的轮廓。把注意力留给热爱的事，也是在照看那些尚未成形的可能。
           </p>
           <p>
-            在一天里，往往会有一段思绪比较清楚、注意力也相对完整的时间。它可能在清晨，也可能出现在别的时刻。把它留给自己想认真投入的事，也是在为思考留出一个安静的开场。最先进入视野的内容，会悄悄影响随后展开的思考。把什么放在前面，也是在回答：<span className="finding-light-emphasis">此刻，什么最值得投入？</span>
+            思绪清明时，不妨把最完整的一段时间，留给真正想追问的问题。需要停下时，记下思考停在何处、下一步想往哪里走，然后安心休息，把继续的线索留给归来时的自己。
           </p>
           <p>
-            AI 的 Context 提供了一个贴切的比喻：当重要线索拥有一段连续的空间，原本的问题更容易留在视野中。人的注意力也需要清楚的入口和边界。从一项长任务转向另一件事时，上一段思绪往往仍会停留。可以先记下目前进行到哪里、下一步准备做什么，再留出几分钟，让注意力慢慢转向接下来的事情。短暂走动、安静休息，或自然地放慢呼吸，都可以成为温和的过渡。
+            投入与停歇，都可以有从容的节奏。
           </p>
-          <p className="finding-harness-closing">
-            保护注意力，也是在照看那些尚未成形的想法。愿你总能拥有一小段完整的时间，让真正值得投入的问题，先得到你最清醒、最从容的目光。
+          <p className="finding-poem finding-harness-closing">
+            <span>愿求索有回响，</span>
+            <span>停歇有晴朗；</span>
+            <span>愿那些值得长久追问的问题，</span>
+            <span>总能遇见你清醒、从容的目光。</span>
           </p>
         </div>
       );
     }
 
     return (
-      <div className="finding-detail finding-detail-question">
-        <p
-          className="finding-question-line finding-question-lead"
-          style={{ "--finding-line-delay": `${FINDING_QUESTION_LEAD_DELAY_MS}ms` } as CSSProperties}
-        >
-          这页手记想留下一句：
-        </p>
+      <div className="finding-detail finding-detail-question" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
         <p className="finding-question" aria-label={FINDING_QUESTION_TEXT}>
           <FindingQuestionReveal />
         </p>
@@ -1119,14 +1160,15 @@ export default function BirthdayExperience() {
           className="finding-question-line"
           style={{ "--finding-line-delay": `${FINDING_QUESTION_AFTER_DELAY_MS}ms` } as CSSProperties}
         >
-          答案可以慢慢出现，这个问题也许会在往后的日子里改变模样。
+          不必现在回答。让它陪你走一段路，
         </p>
         <p
           className="finding-question-line finding-question-closing"
           style={{ "--finding-line-delay": `${FINDING_QUESTION_CLOSING_DELAY_MS}ms` } as CSSProperties}
         >
-          先把它轻轻带上，再往前一点。
+          也许沿途的经历，会带来新的线索。
         </p>
+        <InspirationNote note={inspiration} />
       </div>
     );
   };
@@ -1157,16 +1199,18 @@ export default function BirthdayExperience() {
                     ref={headingRef as React.RefObject<HTMLHeadingElement>}
                     tabIndex={-1}
                   >
-                    <CharacterReveal text="未知风光" baseDelay={1000} step={320} />
+                    <CharacterReveal text="未知风光" baseDelay={1000} step={450} fadeDuration={1400} />
                   </h1>
-                  <Reveal delay={3600} className="copy-secondary subtitle">A Tiny Birthday Field Note</Reveal>
+                  <Reveal delay={4200} className="copy-secondary subtitle">A Tiny Birthday Field Note</Reveal>
                 </div>
-                <Reveal delay={5400} className="intro-copy">今天适合打开一份小小的生日观察手记。</Reveal>
+                <Reveal delay={6000} className="intro-copy">今天，有一份小小的生日手记，想与你分享。</Reveal>
               </div>
-              <div className="scene-actions delayed-action" style={{ "--action-delay": "7400ms" } as CSSProperties}>
+              <div className="scene-actions delayed-action" style={{ "--action-delay": "8000ms" } as CSSProperties}>
                 <button className="button button-primary cover-primary-button" type="button" onClick={openNotebook}>
                   翻开手记
                 </button>
+                {reading.shortcut && <button className="button cover-revisit" type="button" onClick={revisitFindings}>{reading.shortcut}</button>}
+                {reading.preview && <p className="cover-preview-note">预览模式 · 刷新后重置本次阅读</p>}
               </div>
             </div>
           </div>
@@ -1270,6 +1314,7 @@ export default function BirthdayExperience() {
       return (
         <section
           key="letter"
+          ref={sceneReveals.ref}
           className={`scene letter-scene ${phaseClass}`}
           aria-labelledby="letter-title"
           style={{ "--letter-sync-adjustment": `${letterSyncAdjustmentMs}ms` } as CSSProperties}
@@ -1280,24 +1325,31 @@ export default function BirthdayExperience() {
               <div className="letter-line enter-line line-early" aria-hidden="true" />
               <p className="letter-lead">
                 <span id="letter-title" ref={headingRef} tabIndex={-1} className="focus-heading">
-                  <CharacterReveal text="生日快乐，Charlotte。" baseDelay={LETTER_GREETING_DELAY_MS} step={120} />
+                  <CharacterReveal text="生日快乐，Charlotte。" baseDelay={LETTER_GREETING_DELAY_MS} />
                 </span>
               </p>
             </div>
             <div className="letter-message-group">
-              <p className="letter-body" aria-label="愿新的一岁里，你依然拥有追问世界的好奇，也常有从复杂问题中抬起头、看见沿途风景的轻松。">
-                <Reveal delay={10200}>愿新的一岁里，</Reveal>
-                <Reveal delay={12900}>你依然拥有追问世界的好奇，</Reveal>
-                <Reveal delay={15700}>也常有从复杂问题中抬起头、看见沿途风景的轻松。</Reveal>
+              <p className="letter-body" aria-label="愿新的一岁里，你依然拥有追问世界的好奇，也常有抬头看风景的轻松。">
+                <CharacterReveal text="愿新的一岁里，" baseDelay={10200} unfoldDuration={3600} />
+                <CharacterReveal text="你依然拥有追问世界的好奇，" baseDelay={14900} unfoldDuration={4100} />
+                <CharacterReveal text="也常有抬头看风景的轻松。" baseDelay={19900} unfoldDuration={4400} />
               </p>
-              <p className="letter-body" aria-label="愿研究顺利，生活明亮；愿每一次走向未知，都能遇见新的发现。">
-                <Reveal delay={20700}>愿研究顺利，生活明亮；</Reveal>
-                <Reveal delay={23300}>愿每一次走向未知，都能遇见新的发现。</Reveal>
+              <p className="letter-body letter-closing" aria-label="愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。">
+                <span className="letter-sentence">
+                  <CharacterReveal text="愿研究顺利，" baseDelay={25400} unfoldDuration={4400} fadeDuration={3200} />
+                  <CharacterReveal text="生活明亮；" baseDelay={30400} unfoldDuration={4250} fadeDuration={3200} />
+                </span>
+                <span className="letter-sentence">
+                  {/* Start the soft fade before the melody entries near 51.15s and 56.97s. */}
+                  <CharacterReveal text="愿细碎的欢喜，" baseDelay={35150} unfoldDuration={5150} fadeDuration={3400} />
+                  <CharacterReveal text="落满日常。" baseDelay={40950} unfoldDuration={4450} fadeDuration={3200} />
+                </span>
               </p>
             </div>
             <div className="letter-footer-group">
               <div className="letter-line enter-line line-late" aria-hidden="true" />
-              <div className="scene-actions delayed-action" style={{ "--action-delay": "31050ms" } as CSSProperties}>
+              <div className="scene-actions delayed-action" style={{ "--action-delay": "48920ms" } as CSSProperties}>
                 <BackButton
                   onClick={restartJourney}
                   label="← 回到封面"
@@ -1319,7 +1371,8 @@ export default function BirthdayExperience() {
       return (
         <section
           key="discoveries"
-          className={`scene discoveries-scene ${phaseClass} ${discoveriesReturning ? "is-returning" : ""}`}
+          ref={sceneReveals.ref}
+          className={`scene discoveries-scene ${phaseClass}`}
           aria-labelledby="discoveries-title"
         >
           <div className="discoveries-art art-frame enter-art mobile-art" aria-hidden="true">
@@ -1339,11 +1392,11 @@ export default function BirthdayExperience() {
               ref={headingRef as React.RefObject<HTMLHeadingElement>}
               tabIndex={-1}
             >
-              <CharacterReveal text="想与你分享的三件小东西" baseDelay={1050} step={120} />
+              <CharacterReveal text="想与你分享的三件小东西" baseDelay={1050} wrapAfter={6} />
             </h2>
             <p className="discoveries-intro">
-              <Reveal delay={3150}>
-                一种让事情慢慢清楚的方法，一点关于注意力的体会，还有一个可以带着继续往前的问题。
+              <Reveal delay={2950}>
+                一个开始，一段时间，一个问题。
               </Reveal>
             </p>
             <div className="findings-list" aria-label="想与你分享的三件小东西" data-keyboard-nav-block>
@@ -1354,12 +1407,14 @@ export default function BirthdayExperience() {
                 return (
                   <article
                     className="finding-note"
+                    data-kind={finding.kind}
                     key={finding.title}
-                    style={{ "--finding-delay": `${4300 + index * 1500}ms` } as CSSProperties}
+                    style={{ "--finding-delay": `${3900 + index * 650}ms` } as CSSProperties}
                   >
                     <h3 className="finding-heading">
                       <button
                         className="finding-toggle"
+                        data-selected={activeFinding === index || undefined}
                         id={toggleId}
                         type="button"
                         ref={(element) => {
@@ -1376,8 +1431,7 @@ export default function BirthdayExperience() {
                           <span className="finding-summary" id={summaryId}>{finding.summary}</span>
                         </span>
                         <span className="finding-open-label" aria-hidden="true">
-                          展开阅读
-                          <span className="finding-indicator">＋</span>
+                          <span className="finding-indicator">→</span>
                         </span>
                       </button>
                     </h3>
@@ -1387,7 +1441,7 @@ export default function BirthdayExperience() {
             </div>
             <div
               className="scene-actions discoveries-actions delayed-action"
-              style={{ "--action-delay": "9000ms" } as CSSProperties}
+              style={{ "--action-delay": "6200ms" } as CSSProperties}
             >
               <BackButton onClick={() => moveTo(current - 1)} />
               <button className="button button-primary" type="button" onClick={() => moveTo(4)}>
@@ -1402,6 +1456,7 @@ export default function BirthdayExperience() {
             >
               <section
                 className="finding-reader"
+                data-kind={activeFindingData.kind}
                 ref={findingReaderRef}
                 role="dialog"
                 aria-modal="true"
@@ -1412,6 +1467,7 @@ export default function BirthdayExperience() {
                 onKeyDown={handleFindingReaderKeyDown}
               >
                 <header className="finding-reader-header">
+                  <div className="finding-reader-toolbar">
                   <button
                     className="finding-reader-back"
                     type="button"
@@ -1420,12 +1476,14 @@ export default function BirthdayExperience() {
                   >
                     ← 返回三件内容
                   </button>
+                  <MusicControl state={musicState} onToggleMusic={toggleMusic} />
+                  </div>
                   <div className="finding-reader-heading">
                     <span className="finding-reader-index">
                       {String(activeFinding + 1).padStart(2, "0")}
                     </span>
                     <h2 id="finding-reader-title" ref={findingReaderTitleRef} tabIndex={-1}>
-                      {activeFindingData.title}
+                      {activeFinding === 0 ? <><span className="reader-title-unit">让 AI 先问清楚，</span><span className="reader-title-unit">再开始</span></> : activeFindingData.title}
                     </h2>
                     <p id="finding-reader-summary">{activeFindingData.summary}</p>
                   </div>
@@ -1438,6 +1496,11 @@ export default function BirthdayExperience() {
                   tabIndex={0}
                 >
                   {renderFindingDetails(activeFinding)}
+                  <nav className="finding-reader-next" aria-label="继续翻阅小礼物">
+                    <button className="finding-text-action" type="button" onClick={() => activeFinding < 2 ? openFindingReader(activeFinding + 1) : moveTo(4)}>
+                      {activeFinding < 2 ? `下一件：${findings[activeFinding + 1].title} →` : "去下一页 →"}
+                    </button>
+                  </nav>
                 </div>
               </section>
             </div>
@@ -1454,16 +1517,16 @@ export default function BirthdayExperience() {
           )}
         </div>
         <div className="finale-copy">
-          <div className="finale-core">
+          <div className="finale-core" data-started={finaleStarted}>
             {renderMeta("Unseen Horizons", 220)}
-            <div className="finale-message-group">
+            <div className="finale-message-group" ref={finaleMessageRef}>
               <h2
                 className="section-title"
                 id="finale-title"
                 ref={headingRef as React.RefObject<HTMLHeadingElement>}
                 tabIndex={-1}
               >
-                <CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} step={240} />
+              <CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} />
               </h2>
               <p className="finale-wish">
                 <Reveal delay={5400}>愿你一路保有好奇，</Reveal>
@@ -1474,6 +1537,9 @@ export default function BirthdayExperience() {
                 </Reveal>
               </p>
               <Reveal delay={10800} className="copy-secondary signature">Happy Birthday · XCJ · 2026</Reveal>
+              <Reveal delay={12400} className="postcard-entry">
+                <button className="postcard-open" type="button" onClick={() => setPostcardOpen(true)}>保存这份祝福</button>
+              </Reveal>
             </div>
             <div className="scene-actions delayed-action" style={{ "--action-delay": "12800ms" } as CSSProperties}>
               <BackButton onClick={() => moveTo(current - 1)} />
@@ -1563,12 +1629,14 @@ export default function BirthdayExperience() {
         </div>
       </div>
 
+      {postcardOpen && <PostcardPreview onClose={() => setPostcardOpen(false)} />}
+
       <noscript>
         <style>{`.stage-shell{display:none!important}.noscript-note{display:block!important}`}</style>
         <article className="noscript-note">
-          <p>Field Note · 11 / 13</p><h1>未知风光</h1><p>今天适合打开一份小小的生日观察手记。</p><hr />
+          <p>Field Note · 11 / 13</p><h1>未知风光</h1><p>今天，有一份小小的生日手记，想与你分享。</p><hr />
           <h2>点亮这一天</h2><hr />
-          <p>生日快乐，Charlotte。</p><p>愿研究顺利，生活明亮；愿每一次走向未知，都能遇见新的发现。</p><hr />
+          <p>生日快乐，Charlotte。</p><p>愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。</p><hr />
           <h2>想与你分享的三件小东西</h2>{findings.map((finding) => <p key={finding.title}>{finding.title}：{finding.summary}</p>)}<hr />
           <h2>不知远方还藏着怎样的风光</h2><p>愿你一路保有好奇，也常有惊喜。 ：）</p><p>Happy Birthday · XCJ · 2026</p>
         </article>

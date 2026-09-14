@@ -1,0 +1,45 @@
+{
+  "width": 1800,
+  "height": 1200,
+  "design": "B · 生日来信",
+  "paperEdge": "Thin cardstock with a narrow surround, lit upper edge, visible paper side and soft contact shadow",
+  "smile": "Original full-width page-05 glyphs with explicit half-em eye-to-mouth advance; independent of browser punctuation trimming",
+  "handwritingFamily": "Birthday Postcard Ink",
+  "font": "龙藏体 / Long Cang",
+  "renderedWithFontsLoaded": true,
+  "geometry": {
+    "width": 1800,
+    "height": 1200,
+    "card": {
+      "left": 36,
+      "top": 21.59375,
+      "width": 1728,
+      "height": 1152
+    },
+    "smile": {
+      "bounds": {
+        "x": 1325.9296875,
+        "y": 720.3108520507812,
+        "width": 40.765625,
+        "height": 61.15625,
+        "top": 720.3108520507812,
+        "right": 1366.6953125,
+        "bottom": 781.4671020507812,
+        "left": 1325.9296875
+      },
+      "fontSize": 40.7808,
+      "eyeMouthAdvanceEm": 0.49962237131198994,
+      "boxAspectRatio": 1.500191644308164
+    },
+    "signatureCenterDifference": 0,
+    "overflow": []
+  },
+  "files": {
+    "scripts/postcard.html": "cf7555655e26cd8371450f6c4528b4713e23a169c71fc8863519c57e618fe8eb",
+    "scripts/render-postcard.mjs": "a977cd3a5a10fef7514ef5b697e6b284b47c44ba67479be4f5384784d6bbfc68",
+    "public/fonts/postcard/longcang-regular.woff2": "682555c59814f6afd99d18dce5d3913c00ecf9b6281b0d368a7b32910cf50edd",
+    "public/assets/healing-008.jpg": "b2a55f707f2fbf13580aaae8909808b163a11492ebef8171b2a206da13157a65",
+    "public/keepsakes/unknown-horizons-2026.png": "3c9c0d101abef82fa65c954d81d75603832f4a2f7a68438339ce7ef1ef79c109"
+  },
+  "capture": "Lossless Chromium 153.0.8010.12 PNG. Fonts and artwork loaded; signature and smile geometry checked; device scale factor 1; no resizing or recompression."
+}

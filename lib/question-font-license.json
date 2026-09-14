@@ -1,0 +1,30 @@
+{
+  "chinese": {
+    "family": "猫啃硬笔楷书 0.20",
+    "derivativeFamily": "Birthday Question Kai",
+    "file": "public/fonts/question/maoken-regular.woff2",
+    "license": "public/fonts/question/maoken-regular-OFL.txt",
+    "notice": "public/fonts/question/maoken-regular-NOTICE.txt",
+    "embeddingAuthorized": true,
+    "evidence": "https://raw.githubusercontent.com/maoken-fonts/MaokenYingBiKaiShuJ/862082834f1f8686db122f20bebc69d2bd787467/OFL.txt",
+    "source": "https://raw.githubusercontent.com/maoken-fonts/MaokenYingBiKaiShuJ/862082834f1f8686db122f20bebc69d2bd787467/MaokenYingBiKaiShuJ_0.20.ttf",
+    "sourceSha256": "68fb84b7a7eb2c1ffab59e7b75c90176c95bc1a078c4a1f66bd516c60ac75e1a",
+    "sha256": "612cfcb81dcdd533a3f86dcb7e2ea416e9c8be61737777185fc77acab0ad85da",
+    "status": "Selected by user; full-glyph renamed WOFF2 derivative under SIL OFL 1.1.",
+    "outlineSha256": "e68ca174aa65679676d8f4b38f12bf5a670c25ab96774e287d6ec3ed09f9a86a"
+  },
+  "latin": {
+    "family": "Kalam Regular 2.001",
+    "derivativeFamily": "Birthday Question Latin",
+    "file": "public/fonts/question/kalam-regular.woff2",
+    "license": "public/fonts/question/kalam-regular-OFL.txt",
+    "notice": "public/fonts/question/kalam-regular-NOTICE.txt",
+    "embeddingAuthorized": true,
+    "evidence": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/kalam/OFL.txt",
+    "source": "https://raw.githubusercontent.com/google/fonts/809e4d8b8d7e9364a914909bb777679606c178b8/ofl/kalam/Kalam-Regular.ttf",
+    "sourceSha256": "57cecb63d4608019371954274ae1d8c397764debd5b19d4a33c1efa4dc923c0b",
+    "sha256": "12a000bf713f4fcaa9107312ea09d0a41231bad53c726b89151271241def229f",
+    "status": "Selected by user; full-glyph renamed WOFF2 derivative under SIL OFL 1.1.",
+    "outlineSha256": "fd68b2f2f705c3b7623280847237f3778d6a7f8e05100a1045d26451b14d14f0"
+  }
+}

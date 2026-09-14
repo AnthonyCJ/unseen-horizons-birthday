@@ -1,0 +1,4 @@
+Copyright 2018 The Long Cang Project Authors (https://github.com/googlefonts/longcang)
+
+Source: https://raw.githubusercontent.com/google/fonts/main/ofl/longcang/LongCang-Regular.ttf
+SIL OFL 1.1. Full-glyph WOFF2 derivative renamed to Birthday Postcard LongCang. Outlines, cmap and advance metrics verified unchanged. No glyphs removed.

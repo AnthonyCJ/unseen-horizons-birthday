@@ -47,13 +47,12 @@ test("uses semantic compact three-row compositions inside the desktop envelopes"
   );
   for (const [selector, size] of [
     ["cover-core", "48svh"],
-    ["light-inner", "50svh"],
     ["letter-copy", "52svh"],
     ["finale-core", "48svh"],
   ]) {
     assert.match(shortDesktop, new RegExp(`\\.${selector} \\{[\\s\\S]*?min-block-size:\\s*${size}`));
   }
-  assert.match(shortDesktop, /\.light-inner \{[^}]*grid-template-rows:\s*auto minmax\(0, 1fr\) auto/s);
+  assert.match(styles, /\.light-inner \{[^}]*min-block-size:\s*calc\(100svh - clamp\(4rem, 12svh, 8rem\)\)[^}]*grid-template-rows:\s*2\.3rem minmax\(0, 1fr\) 2\.3rem/s);
   assert.match(shortDesktop, /\.orb-stage \{ width:\s*clamp\(158px, min\(12\.6vw, 29svh\), 184px\); \}/);
   assert.match(shortDesktop, /\.date-orb, \.ripple \{ width:\s*clamp\(120px, min\(9\.8vw, 22svh\), 138px\); \}/);
   assert.match(shortDesktop, /\.light-kinetic-field \{ width:\s*clamp\(430px, min\(38vw, 70svh\), 560px\); \}/);
@@ -66,13 +65,13 @@ test("uses semantic compact three-row compositions inside the desktop envelopes"
   );
   for (const [selector, size] of [
     ["cover-core", "52svh"],
-    ["light-inner", "56svh"],
     ["letter-copy", "58svh"],
     ["finale-core", "52svh"],
   ]) {
     assert.match(highDesktop, new RegExp(`\\.${selector} \\{[\\s\\S]*?min-block-size:\\s*${size}`));
   }
-  assert.match(highDesktop, /\.light-inner \{[^}]*width:\s*min\(90%, clamp\(680px, 39\.6vw, 760px\)\)[^}]*max-width:\s*760px/s);
+  assert.match(styles, /\.light-inner \{[^}]*width:\s*min\(90%, 960px\)/s);
+  assert.match(styles, /\.light-scene \.music-control-slot\.is-suppressed \{ display: none; \}/);
   assert.match(highDesktop, /\.orb-stage \{ width:\s*clamp\(196px, 12\.1vw, 232px\); \}/);
   assert.match(highDesktop, /\.date-orb, \.ripple \{ width:\s*clamp\(148px, 8\.75vw, 168px\); \}/);
   assert.match(highDesktop, /\.light-kinetic-field \{ width:\s*clamp\(640px, min\(39\.5vw, 72svh\), 760px\); \}/);
@@ -85,47 +84,48 @@ test("uses semantic compact three-row compositions inside the desktop envelopes"
   assert.match(styles, /@media \(max-width: 640px\)[\s\S]*?\.cover-copy \{[^}]*translateX\(0\)/s);
 });
 
-test("uses length-aware calm title pacing and gentler phrase motion without blur or scale", async () => {
+test("preserves gentle title pacing with a longer four-character cover reveal", async () => {
   const [source, styles] = await Promise.all([
     readFile(experiencePath, "utf8"),
     readFile(stylesPath, "utf8"),
   ]);
 
   for (const titlePace of [
-    '<CharacterReveal text="未知风光" baseDelay={1000} step={320} />',
-    '<CharacterReveal text="生日快乐，Charlotte。" baseDelay={LETTER_GREETING_DELAY_MS} step={120} />',
-    '<CharacterReveal text="想与你分享的三件小东西" baseDelay={1050} step={120} />',
-    '<CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} step={240} />',
+    '<CharacterReveal text="未知风光" baseDelay={1000} step={450} fadeDuration={1400} />',
+    '<CharacterReveal text="生日快乐，Charlotte。" baseDelay={LETTER_GREETING_DELAY_MS} />',
+    '<CharacterReveal text="想与你分享的三件小东西" baseDelay={1050} wrapAfter={6} />',
+    '<CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} />',
   ]) {
     assert.ok(source.includes(titlePace), `Missing revised title pace: ${titlePace}`);
   }
   assert.doesNotMatch(styles, /cover-character-unfold/);
   assert.doesNotMatch(styles, /\.section-title \.character\s*\{/);
+  assert.match(source, /const TITLE_CHARACTER_STEP_MS = 160;/);
+  assert.match(source, /step = TITLE_CHARACTER_STEP_MS/);
+  assert.match(source, /const CHARACTER_FADE_MS = 1100;/);
+  assert.match(styles, /--text-reveal-ease: cubic-bezier\(0\.42, 0, 0\.58, 1\)/);
 
   const characterMotion = section(styles, ".character {", ".phrase-reveal {");
-  assert.match(characterMotion, /1350ms/);
-  assert.match(characterMotion, /translateY\(2px\)/);
-  assert.doesNotMatch(characterMotion, /blur\(|scale\(/);
+  assert.match(characterMotion, /1100ms/);
+  assert.match(characterMotion, /var\(--text-reveal-ease\)/);
+  assert.doesNotMatch(characterMotion, /transform:|filter:/);
 
   const phraseMotion = section(styles, ".phrase-reveal {", ".delayed-action {");
   assert.match(phraseMotion, /1500ms/);
-  assert.match(phraseMotion, /translateY\(2px\)/);
-  assert.doesNotMatch(phraseMotion, /blur\(|scale\(/);
+  assert.match(phraseMotion, /var\(--text-reveal-ease\)/);
+  assert.doesNotMatch(phraseMotion, /transform:|filter:/);
 
   const metaMotion = section(styles, ".scene-meta-unified {", ".meta-tools");
   assert.match(metaMotion, /720ms/);
-  assert.match(metaMotion, /translateY\(2px\)/);
-  assert.doesNotMatch(metaMotion, /blur\(|scale\(/);
+  assert.doesNotMatch(metaMotion, /transform:|filter:/);
 
   const actionMotion = section(styles, ".delayed-action {", ".light-scene .phrase-reveal");
   assert.match(actionMotion, /720ms/);
-  assert.match(actionMotion, /translateY\(3px\)/);
-  assert.doesNotMatch(actionMotion, /blur\(|scale\(/);
+  assert.doesNotMatch(actionMotion, /transform:|filter:/);
 
   assert.match(styles, /\.finding-note \{[^}]*1100ms/s);
-  const findingMotion = section(styles, "@keyframes finding-enter", ".discoveries-scene.is-returning");
-  assert.match(findingMotion, /translateY\(2px\)/);
-  assert.doesNotMatch(findingMotion, /blur\(|scale\(/);
+  const findingMotion = section(styles, "@keyframes finding-enter", ".reading-recalled");
+  assert.doesNotMatch(findingMotion, /transform:|filter:/);
   assert.match(source, /const unifiedMotion = page !== 2;/);
 });
 
@@ -137,25 +137,27 @@ test("locks the revised calm-reading text start times", async () => {
 
   for (const invariant of [
     'renderMeta("Field Note · 11 / 13", 200)',
-    '<CharacterReveal text="未知风光" baseDelay={1000} step={320} />',
-    '<Reveal delay={3600} className="copy-secondary subtitle">',
-    '<Reveal delay={5400} className="intro-copy">',
-    'style={{ "--action-delay": "7400ms" } as CSSProperties}',
+    '<CharacterReveal text="未知风光" baseDelay={1000} step={450} fadeDuration={1400} />',
+    '<Reveal delay={4200} className="copy-secondary subtitle">',
+    '<Reveal delay={6000} className="intro-copy">',
+    'style={{ "--action-delay": "8000ms" } as CSSProperties}',
     'renderMeta("A Small Note", 240)',
-    'baseDelay={LETTER_GREETING_DELAY_MS} step={120}',
-    '<Reveal delay={10200}>',
-    '<Reveal delay={12900}>',
-    '<Reveal delay={15700}>',
-    '<Reveal delay={20700}>',
-    '<Reveal delay={23300}>',
-    'style={{ "--action-delay": "31050ms" } as CSSProperties}',
+    'baseDelay={LETTER_GREETING_DELAY_MS}',
+    'baseDelay={10200} unfoldDuration={3600}',
+    'baseDelay={14900} unfoldDuration={4100}',
+    'baseDelay={19900} unfoldDuration={4400}',
+    'baseDelay={25400} unfoldDuration={4400} fadeDuration={3200}',
+    'baseDelay={30400} unfoldDuration={4250} fadeDuration={3200}',
+    'baseDelay={35150} unfoldDuration={5150} fadeDuration={3400}',
+    'baseDelay={40950} unfoldDuration={4450} fadeDuration={3200}',
+    'style={{ "--action-delay": "48920ms" } as CSSProperties}',
     'renderMeta("For the Days Ahead", 220)',
-    'baseDelay={1050} step={120}',
-    '<Reveal delay={3150}>',
-    '`${4300 + index * 1500}ms`',
-    'style={{ "--action-delay": "9000ms" } as CSSProperties}',
+    'baseDelay={1050} wrapAfter={6}',
+    '<Reveal delay={2950}>',
+    '`${3900 + index * 650}ms`',
+    'style={{ "--action-delay": "6200ms" } as CSSProperties}',
     'renderMeta("Unseen Horizons", 220)',
-    'baseDelay={1350} step={240}',
+    'baseDelay={1350}',
     '<Reveal delay={5400}>',
     '<Reveal delay={7800}>',
     '<Reveal delay={10800}',
@@ -166,7 +168,7 @@ test("locks the revised calm-reading text start times", async () => {
 
   assert.match(source, /const LETTER_GREETING_DELAY_MS = 5000;/);
   assert.match(source, /const FINALE_LIFT_DELAY_MS = 12200;/);
-  assert.match(styles, /\.enter-line\.line-late \{[^}]*calc\(28450ms \+ var\(--letter-sync-adjustment, 0ms\)\)/s);
+  assert.match(styles, /\.enter-line\.line-late \{[^}]*calc\(46400ms \+ var\(--letter-sync-adjustment, 0ms\)\)/s);
   assert.match(styles, /finale-smile-appear 600ms 9200ms/);
   assert.match(styles, /finale-smile-turn 2160ms 9800ms/);
 });
@@ -182,7 +184,6 @@ test("renders content 3 as a top-to-bottom reading sequence with a calm opacity-
     '"新的一岁里，"',
     '"有没有一个问题，"',
     '"你愿意带着它继续往前走？"',
-    "const FINDING_QUESTION_LEAD_DELAY_MS = 1180;",
     "const FINDING_QUESTION_BASE_DELAY_MS = 2500;",
     "const FINDING_QUESTION_STEP_MS = 175;",
     "const FINDING_QUESTION_AFTER_DELAY_MS = 8300;",
@@ -212,7 +213,7 @@ test("renders content 3 as a top-to-bottom reading sequence with a calm opacity-
   assert.match(questionCharacterKeyframes, /from \{ opacity:\s*0; \}/);
   assert.match(questionCharacterKeyframes, /to \{ opacity:\s*1; \}/);
   assert.doesNotMatch(questionCharacterRule + questionCharacterKeyframes, /transform:|filter:|scale\(/);
-  assert.equal((source.match(/className="finding-question-line/g) ?? []).length, 3);
+  assert.equal((source.match(/className="finding-question-line/g) ?? []).length, 2);
 });
 
 test("keeps the softened 840/780 reader state machine while removing every panel scale", async () => {
@@ -288,7 +289,7 @@ test("keeps page 02 JSX isolated while making its BGM-locked choreography percep
     assert.ok(source.includes(invariant), `Missing page 02 timing invariant: ${invariant}`);
   }
 
-  assert.match(styles, /\.light-scene \.phrase-reveal \{[^}]*phrase-soft-reveal-legacy[^}]*1400ms/s);
+  assert.match(styles, /\.light-scene \.phrase-reveal \{[^}]*1400ms/s);
   const lightScore = section(styles, ".light-stage:not(.is-waiting) .light-inner,", ".light-actions {");
   for (const invariant of [
     "animation-duration: var(--light-score-duration)",
@@ -320,7 +321,7 @@ test("keeps page 02 JSX isolated while making its BGM-locked choreography percep
     assert.ok(lightScore.includes(invariant), `Missing BGM score invariant: ${invariant}`);
   }
   const stableContent = section(styles, "@keyframes light-score-content", "@keyframes light-score-core-aura");
-  const stableOrb = section(styles, "@keyframes light-score-orb", "@keyframes light-score-sheen");
+  const stableOrb = section(styles, "@keyframes light-score-orb", "@keyframes light-score-date-mark");
   const stableDate = section(styles, "@keyframes light-score-date-mark", "@keyframes light-score-ambient-one");
   assert.match(stableContent, /91\.03% \{ opacity: 1; \}[\s\S]*94\.37% \{ opacity: 0\.9; \}[\s\S]*100% \{ opacity: 0; \}/);
   assert.doesNotMatch(stableContent, /transform:/);
@@ -377,11 +378,11 @@ test("gives the audited BGM accents explicit outer-only visual peaks", async () 
 
   assert.match(
     styles,
-    /\.light-kinetic-field::before \{[^}]*rgba\(211, 226, 247, 0\.2\)[^}]*rgba\(221, 214, 241, 0\.16\)[^}]*blur\(1\.5px\)/s,
+    /\.light-kinetic-field::before \{[^}]*rgba\(119,154,211,\.27\)[^}]*rgba\(175,143,210,\.21\)[^}]*blur\(2px\)/s,
   );
   assert.match(
     styles,
-    /\.light-track-two \.light-track-line \{[^}]*rgba\(160, 164, 211, 0\.3\)[^}]*rgba\(172, 180, 220, 0\.14\)/s,
+    /\.light-track-two \.light-track-line \{[^}]*rgba\(152,121,185,\.68\)[^}]*rgba\(177,136,198,\.16\)/s,
   );
 
   const bloomStateAt = (percentage) => {
@@ -480,8 +481,8 @@ test("locks the approved page 03 copy, order, and length-aware phrase windows", 
 
   for (const copy of [
     "生日快乐，Charlotte。",
-    "愿新的一岁里，你依然拥有追问世界的好奇，也常有从复杂问题中抬起头、看见沿途风景的轻松。",
-    "愿研究顺利，生活明亮；愿每一次走向未知，都能遇见新的发现。",
+    "愿新的一岁里，你依然拥有追问世界的好奇，也常有抬头看风景的轻松。",
+    "愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。",
     "← 回到封面",
     "回到封面并结束本轮配乐",
     "继续翻阅",
@@ -489,19 +490,21 @@ test("locks the approved page 03 copy, order, and length-aware phrase windows", 
     assert.ok(page03.includes(copy), `Missing protected page 03 copy or ARIA: ${copy}`);
   }
 
-  for (const delay of [10200, 12900, 15700, 20700, 23300, 31050]) {
+  for (const delay of [10200, 14900, 19900, 25400, 30400, 35150, 40950, 48920]) {
     assert.ok(page03.includes(String(delay)), `Missing approved page 03 delay: ${delay}`);
   }
 
   assert.ok(
-    page03.includes("<Reveal delay={15700}>也常有从复杂问题中抬起头、看见沿途风景的轻松。</Reveal>")
-      && page03.includes("<Reveal delay={20700}>愿研究顺利，生活明亮；</Reveal>"),
-    "The first long sentence must keep an approximately two-phrase reading window",
+    page03.includes('text="也常有抬头看风景的轻松。" baseDelay={19900} unfoldDuration={4400}')
+      && page03.includes('text="愿研究顺利，" baseDelay={25400} unfoldDuration={4400}'),
+    "The first paragraph leaves breathing room before the 41-second closing blessing",
   );
   assert.ok(
-    page03.includes("<Reveal delay={23300}>愿每一次走向未知，都能遇见新的发现。</Reveal>")
-      && page03.includes('style={{ "--action-delay": "31050ms" } as CSSProperties}'),
-    "The second long sentence and closing controls must retain the extended cadence",
+    page03.includes('text="生活明亮；" baseDelay={30400} unfoldDuration={4250}')
+      && page03.includes('text="愿细碎的欢喜，" baseDelay={35150} unfoldDuration={5150}')
+      && page03.includes('text="落满日常。" baseDelay={40950} unfoldDuration={4450}')
+      && page03.includes('style={{ "--action-delay": "48920ms" } as CSSProperties}'),
+    "Four closing phrases retain their melody entries with overlapping fades; controls finish near 65.2 seconds",
   );
 });
 
