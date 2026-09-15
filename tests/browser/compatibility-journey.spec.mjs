@@ -10,7 +10,7 @@ test("normal motion: first visit completes all five pages and replay @journey", 
   const errors = observeErrors(page);
   await page.goto(ENTRANCE);
   await scene(page, 1);
-  await recordEnvironment(page, info, { scenario: "normal-speed first visit; Windows engine run, not Safari hardware" });
+  await recordEnvironment(page, info, { scenario: `normal-speed first visit; ${process.platform} engine run, not physical Safari` });
   expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(false);
   await expect(page.locator("audio")).toHaveJSProperty("paused", true);
   await page.getByRole("button", { name: "翻开手记", exact: true }).waitFor({ state: "visible", timeout: 15000 });

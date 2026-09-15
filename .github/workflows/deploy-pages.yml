@@ -43,6 +43,15 @@ jobs:
       - name: Install test browsers
         run: npx playwright install --with-deps chromium webkit firefox
 
+      - name: Provide audio output for headless browser playback
+        run: |
+          sudo apt-get install -y --no-install-recommends pulseaudio pulseaudio-utils
+          pulseaudio --start --exit-idle-time=-1
+          pactl load-module module-null-sink sink_name=gift_ci_audio rate=44100 channels=2
+          pactl set-default-sink gift_ci_audio
+          pactl info
+          pactl list short sinks
+
       - name: Check desktop compatibility, full journey, recovery and downloads in three browsers
         run: npm run test:browser
 
