@@ -1,0 +1,117 @@
+import { test, expect } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { METHOD_PROMPTS } from "../../lib/clarifying-prompt.mjs";
+import { ENTRANCE, scene, openFinding, nextFinding, recordEnvironment, observeErrors, assertLayout, revisit } from "./compatibility-helpers.mjs";
+
+test.use({ viewport: { width: 1440, height: 800 }, contextOptions: { screen: { width: 1440, height: 900 } }, deviceScaleFactor: 2, reducedMotion: "no-preference" });
+
+test("normal motion: first visit completes all five pages and replay @journey", async ({ page }, info) => {
+  test.setTimeout(200000);
+  const errors = observeErrors(page);
+  await page.goto(ENTRANCE);
+  await scene(page, 1);
+  await recordEnvironment(page, info, { scenario: "normal-speed first visit; Windows engine run, not Safari hardware" });
+  expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(false);
+  await expect(page.locator("audio")).toHaveJSProperty("paused", true);
+  await page.getByRole("button", { name: "翻开手记", exact: true }).waitFor({ state: "visible", timeout: 15000 });
+  await expect(page.locator(".scene-actions")).toHaveCSS("opacity", "1");
+  await page.screenshot({ path: info.outputPath("cover.png") });
+  await page.getByRole("button", { name: "翻开手记", exact: true }).click();
+  await expect(page.locator(".stage")).toHaveAttribute("data-page", "2");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.locator(".stage")).toHaveAttribute("data-page", "2");
+  await expect(page.locator(".stage")).toHaveAttribute("data-page", "3", { timeout: 23000 });
+  await scene(page, 3);
+  const playback = await page.locator("audio").evaluate(el => ({ codec: el.canPlayType("audio/mpeg"), paused: el.paused, time: el.currentTime, error: el.error?.code ?? null }));
+  await info.attach("native-audio", { contentType: "application/json", body: JSON.stringify(playback) });
+  if (playback.codec) {
+    expect(playback.error).toBeNull();
+    expect(playback.time).toBeGreaterThan(0);
+    await page.getByRole("button", { name: /^暂停音乐/ }).click();
+    await expect(page.locator("audio")).toHaveJSProperty("paused", true);
+    await page.getByRole("button", { name: /^继续音乐/ }).click();
+    await expect(page.locator("audio")).toHaveJSProperty("paused", false);
+  } else {
+    info.annotations.push({ type: "limitation", description: "This operating-system/browser build has no MP3 codec; native audio is not verified here." });
+    await expect(page.getByRole("button", { name: /^播放音乐/ })).toBeEnabled();
+  }
+  await page.getByRole("button", { name: "继续翻阅", exact: true }).waitFor({ state: "visible", timeout: 60000 });
+  await expect(page.locator(".letter-closing .character").last()).toHaveCSS("opacity", "1");
+  await expect(page.locator(".scene-actions")).toHaveCSS("opacity", "1");
+  await assertLayout(page, info, "normal-letter");
+  await page.screenshot({ path: info.outputPath("letter.png") });
+  await page.getByRole("button", { name: "继续翻阅", exact: true }).click();
+  await scene(page, 4);
+  await openFinding(page, 1);
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.getByRole("button", { name: "English", exact: true })).toBeFocused();
+  await expect(page.getByRole("button", { name: "English", exact: true })).toHaveAttribute("aria-pressed", "true");
+  const pending = page.waitForEvent("download");
+  await page.getByRole("button", { name: "保存英文 Prompt", exact: true }).click();
+  const download = await pending;
+  await download.saveAs(info.outputPath("prompt-en.txt"));
+  expect(await readFile(info.outputPath("prompt-en.txt"), "utf8")).toBe(METHOD_PROMPTS.en.prompt);
+  await nextFinding(page);
+  await expect(page.getByRole("heading", { name: "Harness Self", exact: true })).toBeVisible();
+  await nextFinding(page);
+  await expect(page.locator(".finding-question-character").last()).toHaveCSS("opacity", "1", { timeout: 15000 });
+  await page.locator("#inspiration-text").fill("保留好奇，也留一点空白。\nKeep a little room for tomorrow.");
+  await page.locator("#inspiration-text").press("Escape");
+  await expect(page.locator(".finding-reader-layer")).toHaveCount(0);
+  await expect(page.locator("#finding-toggle-3")).toBeFocused();
+  await openFinding(page, 3);
+  await expect(page.locator("#inspiration-text")).toHaveValue("保留好奇，也留一点空白。\nKeep a little room for tomorrow.");
+  expect(Number(await page.locator(".finding-question-character").last().evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(.1);
+  await page.getByRole("button", { name: "去下一页 →", exact: true }).click();
+  await expect(page.locator(".finding-reader-layer")).toBeVisible();
+  await scene(page, 5);
+  await page.getByRole("button", { name: "保存这份祝福", exact: true }).waitFor({ state: "visible", timeout: 18000 });
+  await expect(page.locator(".postcard-entry")).toHaveCSS("opacity", "1");
+  await expect(page.locator(".scene-actions")).toHaveCSS("opacity", "1");
+  await assertLayout(page, info, "normal-finale");
+  await page.screenshot({ path: info.outputPath("finale.png") });
+  await page.getByRole("button", { name: "保存这份祝福", exact: true }).click();
+  await expect(page.locator(".postcard-dialog img")).toBeVisible();
+  await page.locator(".postcard-dialog").press("Escape");
+  await expect(page.locator(".postcard-dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "重新翻阅", exact: true }).click();
+  await scene(page, 1);
+  await expect(page.locator("audio")).toHaveJSProperty("paused", true);
+  await expect(page.locator("audio")).toHaveJSProperty("currentTime", 0);
+  await expect(page.getByRole("button", { name: "回看三件小东西", exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+for (const viewport of [{ width: 1920, height: 1080 }, { width: 390, height: 744 }]) {
+  test(`normal motion ${viewport.width}: modal focus, resize, and preference changes @motion`, async ({ page }, info) => {
+    test.setTimeout(100000);
+    await page.setViewportSize(viewport);
+    const errors = observeErrors(page);
+    await revisit(page, 3);
+    await recordEnvironment(page, info, { scenario: "normal-motion reentry and dynamic preferences" });
+    const input = page.locator("#inspiration-text");
+    await input.fill("一次完整的回看。\nA second look.");
+    await page.getByRole("button", { name: "带走这张问题签", exact: true }).click();
+    const dialog = page.locator(".question-export-dialog");
+    await expect(dialog.locator("img")).toBeVisible();
+    await dialog.getByRole("button", { name: "返回填写", exact: true }).click();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "带走这张问题签", exact: true })).toBeFocused();
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.setViewportSize({ width: 800, height: 600 });
+    await assertLayout(page, info, "resized-reader");
+    await expect(input).toHaveValue("一次完整的回看。\nA second look.");
+    await page.locator("#inspiration-text").press("Escape");
+    await expect(page.locator(".finding-reader-layer")).toHaveCount(0);
+    await openFinding(page, 1);
+    await page.getByRole("button", { name: "English", exact: true }).click();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(page.getByRole("button", { name: "English", exact: true })).toHaveAttribute("aria-pressed", "true");
+    await expect(page.getByRole("button", { name: "English", exact: true })).toBeEnabled();
+    await page.getByRole("button", { name: "English", exact: true }).press("Escape");
+    await expect(page.locator(".finding-reader-layer")).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+}

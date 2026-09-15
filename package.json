@@ -1,6 +1,6 @@
 {
   "name": "unseen-horizons-birthday",
-  "version": "0.2.1",
+  "version": "0.4.4",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -11,14 +11,15 @@
     "preview": "node scripts/serve-static.mjs out",
     "render:postcard": "node scripts/render-postcard.mjs",
     "lint": "eslint .",
-    "test": "node --test tests/source/access-gate.test.mjs tests/source/v38-invariants.test.mjs tests/source/page04-v40.test.mjs tests/source/v41-visual-rhythm.test.mjs tests/source/postcard.test.mjs tests/source/question-draft.test.mjs tests/source/reading-progress.test.mjs tests/source/question-card-layout.test.mjs",
+    "test": "node --test tests/source/access-gate.test.mjs tests/source/v38-invariants.test.mjs tests/source/page04-v40.test.mjs tests/source/v41-visual-rhythm.test.mjs tests/source/postcard.test.mjs tests/source/question-draft.test.mjs tests/source/reading-progress.test.mjs tests/source/question-card-layout.test.mjs tests/source/prompt-download.test.mjs tests/source/preview-server.test.mjs",
     "test:export": "node --test tests/export/static-export.test.mjs",
     "check": "npm run lint && npm test && npm run build && npm run test:export",
     "verify:private-key": "node scripts/verify-private-key.mjs",
     "test:browser": "playwright test",
     "test:browser:quick": "playwright test --project=chromium",
     "verify:question-fonts": "node scripts/verify-question-fonts.mjs",
-    "check:release": "npm run check && npm run verify:question-fonts && npm run test:browser"
+    "check:release": "npm run check && npm run verify:question-fonts && npm run test:browser",
+    "test:compatibility": "playwright test tests/browser/compatibility"
   },
   "dependencies": {
     "next": "16.2.6",

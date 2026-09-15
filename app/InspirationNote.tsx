@@ -5,11 +5,13 @@ import { QUESTION_DRAFT_LIMIT, visibleLength, validateQuestionText } from "../li
 import { loadQuestionFonts, questionFontCoverage } from "../lib/question-fonts.mjs";
 import type { useQuestionDraft } from "./useQuestionDraft";
 import QuestionCardExport from "./QuestionCardExport";
+import { SoftReveal } from "./SoftMotion";
 
 export default function InspirationNote({ note }: { note: ReturnType<typeof useQuestionDraft> }) {
   const textarea = useRef<HTMLTextAreaElement>(null);
   const composition = useRef(false);
   const selection = useRef({ start: 0, end: 0 });
+  const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [composing, setComposing] = useState(false);
   const [compositionText, setCompositionText] = useState("");
   const [fontState, setFontState] = useState("loading");
@@ -80,17 +82,21 @@ export default function InspirationNote({ note }: { note: ReturnType<typeof useQ
       <p id="inspiration-storage" className="inspiration-status" role="status">{!note.storageAvailable
         ? "浏览器暂存不可用，刷新可能丢失本次修改或恢复旧草稿。请先保存图片或复制文字。" : ""}</p>
       <QuestionCardExport key={note.previewReset} text={note.text} disabled={!note.ready || composing} />
-      {(note.text.length > 0 || note.canUndo || note.clearPending) && <div className="inspiration-actions">
+      <SoftReveal show={note.text.length > 0 || note.canUndo || note.clearPending}><div className="inspiration-actions">
         {(note.text.length > 0 || note.clearPending) && <button className="finding-text-action" type="button" disabled={composing} onClick={() => editAgain(note.clear)}>
           {note.clearPending ? "重试清空" : "清空本次填写"}
         </button>}
         {note.canUndo && <button className="finding-text-action" type="button" disabled={composing} onClick={() => editAgain(note.undoClear)}>撤销清空</button>}
-      </div>}
+      </div></SoftReveal>
       <p id="inspiration-status" className="inspiration-status" role="status">{note.status}</p>
-      {note.recoveryText !== null && <details className="inspiration-recovery"><summary>查看未恢复的旧草稿</summary>
+      {note.recoveryText !== null && <div className="inspiration-recovery">
+        <button type="button" className="finding-text-action" aria-expanded={recoveryOpen}
+          aria-controls="inspiration-recovery-text" onClick={() => setRecoveryOpen(!recoveryOpen)}>查看未恢复的旧草稿</button>
+        <SoftReveal show={recoveryOpen}><div id="inspiration-recovery-text">
         <p className="inspiration-hint">可选中并复制原文；继续填写不会关闭这份恢复内容。</p>
         <textarea aria-label="未恢复的旧草稿原文" readOnly value={note.recoveryText} onFocus={(event) => event.currentTarget.select()} />
-      </details>}
+        </div></SoftReveal>
+      </div>}
     </section>
   );
 }

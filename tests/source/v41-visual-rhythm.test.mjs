@@ -124,7 +124,7 @@ test("preserves gentle title pacing with a longer four-character cover reveal", 
   assert.doesNotMatch(actionMotion, /transform:|filter:/);
 
   assert.match(styles, /\.finding-note \{[^}]*1100ms/s);
-  const findingMotion = section(styles, "@keyframes finding-enter", ".reading-recalled");
+  const findingMotion = section(styles, "@keyframes finding-enter", ".finale-core[data-started=");
   assert.doesNotMatch(findingMotion, /transform:|filter:/);
   assert.match(source, /const unifiedMotion = page !== 2;/);
 });
@@ -510,16 +510,17 @@ test("locks the approved page 03 copy, order, and length-aware phrase windows", 
 
 test("uses gentle reversible motion for cards, reader controls, and Prompt disclosure", async () => {
   const [source, styles] = await Promise.all([
-    readFile(experiencePath, "utf8"),
+    readFile(new URL("../../app/MethodPrompt.tsx", import.meta.url), "utf8"),
     readFile(stylesPath, "utf8"),
   ]);
 
   for (const interaction of [
-    'className={`prompt-label-stack ${promptExpanded ? "is-alternate" : ""}`}',
     'className={`prompt-label-stack ${copyStatus === "success" ? "is-alternate" : ""}`}',
-    'className={`prompt-drawer ${promptExpanded ? "is-open" : ""}`}',
-    "inert={!promptExpanded}",
-    "}, 2000);",
+    'className={`prompt-drawer ${panel === "prompt" ? "is-open" : ""}`}',
+    'className={`prompt-drawer ${panel === "guide" ? "is-open" : ""}`}',
+    'inert={panel !== "prompt"}',
+    'inert={panel !== "guide"}',
+    "}, 2200);",
   ]) {
     assert.ok(source.includes(interaction), `Missing softened interaction invariant: ${interaction}`);
   }

@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, SyntheticEvent } from "react";
 import PostcardPreview from "./PostcardPreview";
-import { useReadReveals } from "./useReadReveals";
-import { CLARIFYING_PROMPT } from "../lib/clarifying-prompt.mjs";
+import type { PromptLanguage } from "../lib/clarifying-prompt.mjs";
+import MethodPrompt from "./MethodPrompt";
 import { useQuestionDraft } from "./useQuestionDraft";
 import InspirationNote from "./InspirationNote";
 import { useReadingProgress } from "./useReadingProgress";
@@ -25,6 +25,7 @@ const LIGHT_SCORE_BPM = 92.95;
 const LIGHT_SCORE_BEAT_MS = 60000 / LIGHT_SCORE_BPM;
 const LIGHT_SCORE_DURATION_MS = LETTER_SCENE_TARGET_SECONDS * 1000;
 const STANDARD_VOLUME = 0.841;
+const MUSIC_LOADING_TIMEOUT_MS = 12000;
 const FOCUS_VOLUME = 0.6;
 const FINALE_BASE_VOLUME = 0.78;
 const FINALE_VOLUME = 1;
@@ -78,7 +79,6 @@ type TransitionProfile = "standard" | "artwork";
 type InputMode = "pointer" | "keyboard";
 type MusicState = "idle" | "loading" | "playing" | "pausing" | "paused" | "ended" | "error";
 type LightStage = "waiting" | "lighting" | "departing";
-type CopyStatus = "idle" | "success" | "error";
 
 function useReducedMotion() {
   const [reduced, setReduced] = useState(false);
@@ -341,18 +341,15 @@ export default function BirthdayExperience() {
   const [activeFinding, setActiveFinding] = useState<number | null>(null);
   const [findingReaderVisible, setFindingReaderVisible] = useState(false);
   const [findingReaderClosing, setFindingReaderClosing] = useState(false);
-  const [promptExpanded, setPromptExpanded] = useState(false);
-  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+  const [readerSwap, setReaderSwap] = useState<"idle" | "out" | "in">("idle");
+  const isFindingReaderOpen = activeFinding !== null;
+  const [promptLanguage, setPromptLanguage] = useState<PromptLanguage>("zh");
   const [finaleStarted, setFinaleStarted] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
   const reading = useReadingProgress(current, activeFinding, findingReaderVisible);
   const inspiration = useQuestionDraft();
   const [letterSyncAdjustmentMs, setLetterSyncAdjustmentMs] = useState(0);
   const reducedMotion = useReducedMotion();
-  const sceneReveals = useReadReveals(current === 2 ? "letter" : current === 3 ? "discoveries" : null, assetsReady, reducedMotion);
-  const readerReveals = useReadReveals(activeFinding === null ? null : `finding-${activeFinding}`, findingReaderVisible || findingReaderClosing, reducedMotion);
-  const resetSceneReveals = sceneReveals.reset;
-  const resetReaderReveals = readerReveals.reset;
   const finaleMessageRef = useRef<HTMLDivElement>(null);
   const headingRef = useRef<HTMLElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -369,25 +366,38 @@ export default function BirthdayExperience() {
   const lightPointerFrame = useRef<number | null>(null);
   const lightPointerBounds = useRef<DOMRect | null>(null);
   const decodedImages = useRef<HTMLImageElement[]>([]);
-  const copyFeedbackTimer = useRef<number | null>(null);
   const findingReaderCloseTimer = useRef<number | null>(null);
+  const swapTimer = useRef<number | null>(null);
+  const swapFrame = useRef<number | null>(null);
+  const swapBusy = useRef(false);
   const findingButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const findingReaderRef = useRef<HTMLElement>(null);
   const findingReaderTitleRef = useRef<HTMLHeadingElement>(null);
   const findingReaderScrollRef = useRef<HTMLDivElement>(null);
   const overviewScrollPosition = useRef(0);
 
+  useEffect(() => {
+    if (musicState !== "loading") return;
+    const session = musicSession.current;
+    // A stalled play() or buffering request must not leave the only music
+    // control disabled indefinitely. Late promises belong to the old session.
+    const timer = window.setTimeout(() => {
+      if (musicSession.current !== session || resetInProgress.current) return;
+      musicSession.current += 1;
+      if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
+      volumeFrame.current = null;
+      const audio = audioRef.current;
+      audio?.pause();
+      if (audio) audio.volume = sceneVolume.current;
+      pauseInProgress.current = false;
+      setMusicState("error");
+    }, MUSIC_LOADING_TIMEOUT_MS);
+    return () => window.clearTimeout(timer);
+  }, [musicState]);
+
   const clearTimers = useCallback(() => {
     timers.current.forEach((timer) => window.clearTimeout(timer));
     timers.current = [];
-  }, []);
-
-  const clearCopyFeedback = useCallback(() => {
-    if (copyFeedbackTimer.current !== null) {
-      window.clearTimeout(copyFeedbackTimer.current);
-      copyFeedbackTimer.current = null;
-    }
-    setCopyStatus("idle");
   }, []);
 
   const clearFindingReaderCloseTimer = useCallback(() => {
@@ -397,25 +407,33 @@ export default function BirthdayExperience() {
     }
   }, []);
 
+  const cancelSwap = useCallback(() => {
+    if (swapTimer.current !== null) window.clearTimeout(swapTimer.current);
+    if (swapFrame.current !== null) window.cancelAnimationFrame(swapFrame.current);
+    swapTimer.current = null;
+    swapFrame.current = null;
+    swapBusy.current = false;
+  }, []);
+
   const resetFindingReader = useCallback(() => {
+    cancelSwap();
+    setReaderSwap("idle");
     clearFindingReaderCloseTimer();
     setFindingReaderVisible(false);
     setFindingReaderClosing(false);
     setActiveFinding(null);
-    setPromptExpanded(false);
-    clearCopyFeedback();
-  }, [clearCopyFeedback, clearFindingReaderCloseTimer]);
+  }, [clearFindingReaderCloseTimer, cancelSwap]);
 
   useEffect(
     () => () => {
       clearTimers();
+      cancelSwap();
       if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
       if (lightSyncFrame.current !== null) window.cancelAnimationFrame(lightSyncFrame.current);
       if (lightPointerFrame.current !== null) window.cancelAnimationFrame(lightPointerFrame.current);
-      if (copyFeedbackTimer.current !== null) window.clearTimeout(copyFeedbackTimer.current);
       if (findingReaderCloseTimer.current !== null) window.clearTimeout(findingReaderCloseTimer.current);
     },
-    [clearTimers],
+    [clearTimers, cancelSwap],
   );
 
   useEffect(() => {
@@ -450,7 +468,6 @@ export default function BirthdayExperience() {
       if (phase !== "idle" || target < 0 || target >= screens.length || target === current) return;
       if (target === 1 && current !== 0) return;
 
-      if (current === 3 && target !== 3) resetFindingReader();
       if (target === 2) setLetterSyncAdjustmentMs(0);
       if (target === 4) setFinaleStarted(false);
 
@@ -463,6 +480,7 @@ export default function BirthdayExperience() {
       setTransitionProfile(nextProfile);
 
       if (reducedMotion) {
+        if (current === 3 && target !== 3) resetFindingReader();
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
         setCurrent(target);
         return;
@@ -472,6 +490,8 @@ export default function BirthdayExperience() {
       timers.current.push(
         window.setTimeout(() => {
           setPhase("paper");
+          // The paper veil now covers the reader; removing it earlier reveals the overview.
+          if (current === 3 && target !== 3) resetFindingReader();
           timers.current.push(
             window.setTimeout(() => {
               window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -788,8 +808,6 @@ export default function BirthdayExperience() {
     resetInProgress.current = true;
     clearTimers();
     resetFindingReader();
-    resetSceneReveals();
-    resetReaderReveals();
     setPostcardOpen(false);
     lightSyncActive.current = false;
     if (lightSyncFrame.current !== null) {
@@ -831,7 +849,7 @@ export default function BirthdayExperience() {
     }
 
     moveTo(0);
-  }, [clearTimers, fadeVolume, moveTo, phase, reducedMotion, resetFindingReader, resetSceneReveals, resetReaderReveals]);
+  }, [clearTimers, fadeVolume, moveTo, phase, reducedMotion, resetFindingReader]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -899,25 +917,59 @@ export default function BirthdayExperience() {
   const imageAvailable = (source: string) => !failedAssets.has(source);
 
   const openFindingReader = useCallback((index: number) => {
+    if (swapBusy.current || findingReaderClosing || index === activeFinding) return;
     clearFindingReaderCloseTimer();
+    if (activeFinding !== null) {
+      const commit = () => {
+        setActiveFinding(index);
+        setReaderSwap(reducedMotion ? "idle" : "in");
+        swapFrame.current = window.requestAnimationFrame(() => {
+          swapFrame.current = null;
+          findingReaderScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+          findingReaderTitleRef.current?.focus({ preventScroll: true });
+        });
+        if (!reducedMotion) {
+          swapTimer.current = window.setTimeout(() => {
+            swapTimer.current = null;
+            swapBusy.current = false;
+            setReaderSwap("idle");
+          }, 460);
+        }
+      };
+      if (reducedMotion) {
+        commit();
+        return;
+      }
+      swapBusy.current = true;
+      // Keep keyboard events inside the reader before its content becomes inert.
+      if (findingReaderScrollRef.current?.contains(document.activeElement)) {
+        findingReaderTitleRef.current?.focus({ preventScroll: true });
+      }
+      setReaderSwap("out");
+      swapTimer.current = window.setTimeout(commit, 240);
+      return;
+    }
+    cancelSwap();
+    setReaderSwap("idle");
     setFindingReaderVisible(false);
     setFindingReaderClosing(false);
-    setPromptExpanded(false);
-    clearCopyFeedback();
     setActiveFinding(index);
-  }, [clearCopyFeedback, clearFindingReaderCloseTimer]);
+  }, [activeFinding, findingReaderClosing, reducedMotion, clearFindingReaderCloseTimer, cancelSwap]);
 
   const closeFindingReader = useCallback((restoreFocus = true) => {
     if (activeFinding === null || findingReaderClosing) return;
+    cancelSwap();
+    if (findingReaderScrollRef.current?.contains(document.activeElement)) {
+      findingReaderTitleRef.current?.focus({ preventScroll: true });
+    }
 
     const triggerIndex = activeFinding;
     const finishClosing = () => {
       findingReaderCloseTimer.current = null;
+      setReaderSwap("idle");
       setFindingReaderVisible(false);
       setFindingReaderClosing(false);
       setActiveFinding(null);
-      setPromptExpanded(false);
-      clearCopyFeedback();
 
       if (restoreFocus) {
         window.requestAnimationFrame(() => findingButtonRefs.current[triggerIndex]?.focus({ preventScroll: true }));
@@ -932,10 +984,10 @@ export default function BirthdayExperience() {
     setFindingReaderClosing(true);
     setFindingReaderVisible(false);
     findingReaderCloseTimer.current = window.setTimeout(finishClosing, FINDING_READER_CLOSE_MS);
-  }, [activeFinding, clearCopyFeedback, findingReaderClosing, reducedMotion]);
+  }, [activeFinding, findingReaderClosing, reducedMotion, cancelSwap]);
 
   useEffect(() => {
-    if (activeFinding === null) return;
+    if (!isFindingReaderOpen) return;
 
     overviewScrollPosition.current = window.scrollY;
     const body = document.body;
@@ -951,21 +1003,26 @@ export default function BirthdayExperience() {
     body.style.top = `-${overviewScrollPosition.current}px`;
     body.style.width = "100%";
 
+    // Keep the body locked throughout swaps; only opening/closing owns this lock.
+    let secondFrame: number | null = null;
     const frame = window.requestAnimationFrame(() => {
-      setFindingReaderVisible(true);
-      findingReaderScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      findingReaderTitleRef.current?.focus();
+      secondFrame = window.requestAnimationFrame(() => {
+        setFindingReaderVisible(true);
+        findingReaderScrollRef.current?.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        findingReaderTitleRef.current?.focus({ preventScroll: true });
+      });
     });
 
     return () => {
       window.cancelAnimationFrame(frame);
+      if (secondFrame !== null) window.cancelAnimationFrame(secondFrame);
       body.style.overflow = previousBodyStyles.overflow;
       body.style.position = previousBodyStyles.position;
       body.style.top = previousBodyStyles.top;
       body.style.width = previousBodyStyles.width;
       window.scrollTo({ top: overviewScrollPosition.current, left: 0, behavior: "auto" });
     };
-  }, [activeFinding]);
+  }, [isFindingReaderOpen]);
 
   const handleFindingReaderKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key === "Escape") {
@@ -1024,101 +1081,17 @@ export default function BirthdayExperience() {
     }
   }, [closeFindingReader]);
 
-  const copyPrompt = useCallback(async () => {
-    if (copyFeedbackTimer.current !== null) {
-      window.clearTimeout(copyFeedbackTimer.current);
-      copyFeedbackTimer.current = null;
-    }
-
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(CLARIFYING_PROMPT);
-      setCopyStatus("success");
-      copyFeedbackTimer.current = window.setTimeout(() => {
-        copyFeedbackTimer.current = null;
-        setCopyStatus("idle");
-      }, 2000);
-    } catch {
-      setPromptExpanded(true);
-      setCopyStatus("error");
-    }
-  }, []);
-
   const renderFindingDetails = (index: number) => {
     if (index === 0) {
       return (
-        <div className="finding-detail finding-detail-method" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
+        <div className="finding-detail finding-detail-method">
           <p>
             这段 Prompt 用来请 AI 先理解你想做的事，把背景、期待与边界整理成一份简报，等你确认后再着手推进。
           </p>
           <p>
             念头不必一开始就很完整。研究里的疑问、生活中的计划，或一次突如其来的灵感，都可以成为对话的开端。
           </p>
-          <aside className="prompt-tool" aria-labelledby="clarifying-prompt-title">
-            <h4 id="clarifying-prompt-title" className="sr-only">可直接使用的 Prompt</h4>
-            <div className="prompt-actions">
-              <button
-                className={`prompt-action prompt-copy-action ${copyStatus === "success" ? "is-success" : ""}`}
-                type="button"
-                aria-describedby="clarifying-prompt-description prompt-copy-status"
-                aria-label={copyStatus === "success" ? "已复制" : "复制完整 Prompt"}
-                onClick={() => void copyPrompt()}
-              >
-                <span
-                  className={`prompt-label-stack ${copyStatus === "success" ? "is-alternate" : ""}`}
-                  aria-hidden="true"
-                >
-                  <span>复制 Prompt</span>
-                  <span>已复制</span>
-                </span>
-              </button>
-              <button
-                className="finding-text-action prompt-read-action"
-                type="button"
-                aria-expanded={promptExpanded}
-                aria-controls="clarifying-prompt-text"
-                aria-label={promptExpanded ? "收起 Prompt" : "查看完整 Prompt"}
-                onClick={() => setPromptExpanded((expanded) => !expanded)}
-              >
-                <span
-                  className={`prompt-label-stack ${promptExpanded ? "is-alternate" : ""}`}
-                  aria-hidden="true"
-                >
-                  <span>阅读全文 ↓</span>
-                  <span>收起全文 ↑</span>
-                </span>
-              </button>
-            </div>
-            <p id="clarifying-prompt-description" className="prompt-usage">复制到新对话，将末尾的「任务内容」换成你的需求；简报合适后，回复「确认开始」。</p>
-            <span
-              className={copyStatus === "error" ? "prompt-feedback" : "sr-only"}
-              id="prompt-copy-status"
-              role="status"
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {copyStatus === "success"
-                ? "完整 Prompt 已复制"
-                : copyStatus === "error"
-                  ? "未能自动复制，可以手动选择文本"
-                  : ""}
-            </span>
-            <div
-              className={`prompt-drawer ${promptExpanded ? "is-open" : ""}`}
-              aria-hidden={!promptExpanded}
-              inert={!promptExpanded}
-            >
-              <div className="prompt-drawer-inner">
-                <pre
-                  className="prompt-text"
-                  id="clarifying-prompt-text"
-                  tabIndex={promptExpanded ? 0 : -1}
-                >
-                  <code>{CLARIFYING_PROMPT}</code>
-                </pre>
-              </div>
-            </div>
-          </aside>
+          <MethodPrompt language={promptLanguage} onLanguageChange={setPromptLanguage} active={!findingReaderClosing && readerSwap !== "out"} />
           <p className="finding-poem">
             <span>愿初生的灵感，</span>
             <span>在想象里舒展翅膀；</span>
@@ -1131,28 +1104,30 @@ export default function BirthdayExperience() {
 
     if (index === 1) {
       return (
-        <div className="finding-detail finding-detail-harness" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
+        <div className="finding-detail finding-detail-harness">
           <p>
             有些想法，需要一段安静的时间，才会显出自己的轮廓。把注意力留给热爱的事，也是在照看那些尚未成形的可能。
           </p>
-          <p>
-            思绪清明时，不妨把最完整的一段时间，留给真正想追问的问题。需要停下时，记下思考停在何处、下一步想往哪里走，然后安心休息，把继续的线索留给归来时的自己。
-          </p>
-          <p>
-            投入与停歇，都可以有从容的节奏。
+          <section className="finding-harness-concept" aria-labelledby="finding-harness-word">
+            <h3 id="finding-harness-word" className="finding-harness-word" lang="en">Harness Self</h3>
+            <p className="finding-harness-anchor"><span>让注意力的去向，</span><span>更多由自己决定。</span></p>
+            <p className="finding-harness-meaning">在这页手记里，我想用它说的是：把心思留给在意的事，也让暂时不急的声音等一等。</p>
+          </section>
+          <p className="finding-harness-rhythm">
+            <span>投入与停歇，</span><span>都可以有从容的节奏。</span>
           </p>
           <p className="finding-poem finding-harness-closing">
             <span>愿求索有回响，</span>
             <span>停歇有晴朗；</span>
             <span>愿那些值得长久追问的问题，</span>
-            <span>总能遇见你清醒、从容的目光。</span>
+            <span><span className="finding-harness-phrase">总能遇见你</span><span className="finding-harness-phrase">清醒、从容的目光。</span></span>
           </p>
         </div>
       );
     }
 
     return (
-      <div className="finding-detail finding-detail-question" ref={readerReveals.ref as React.RefObject<HTMLDivElement>}>
+      <div className="finding-detail finding-detail-question">
         <p className="finding-question" aria-label={FINDING_QUESTION_TEXT}>
           <FindingQuestionReveal />
         </p>
@@ -1184,6 +1159,8 @@ export default function BirthdayExperience() {
     />
   );
 
+  // Reentry mounts a fresh keyed scene; ordinary rerenders keep its CSS reading clock.
+  // Reading progress and question drafts do not decide whether a ritual can replay.
   const renderScene = () => {
     if (current === 0) {
       return (
@@ -1314,7 +1291,6 @@ export default function BirthdayExperience() {
       return (
         <section
           key="letter"
-          ref={sceneReveals.ref}
           className={`scene letter-scene ${phaseClass}`}
           aria-labelledby="letter-title"
           style={{ "--letter-sync-adjustment": `${letterSyncAdjustmentMs}ms` } as CSSProperties}
@@ -1371,7 +1347,6 @@ export default function BirthdayExperience() {
       return (
         <section
           key="discoveries"
-          ref={sceneReveals.ref}
           className={`scene discoveries-scene ${phaseClass}`}
           aria-labelledby="discoveries-title"
         >
@@ -1453,6 +1428,7 @@ export default function BirthdayExperience() {
             <div
               className={`finding-reader-layer ${findingReaderVisible && !findingReaderClosing ? "is-open" : ""} ${findingReaderClosing ? "is-closing" : ""}`}
               data-state={findingReaderClosing ? "closing" : findingReaderVisible ? "open" : "opening"}
+              data-swap={readerSwap}
             >
               <section
                 className="finding-reader"
@@ -1460,7 +1436,7 @@ export default function BirthdayExperience() {
                 ref={findingReaderRef}
                 role="dialog"
                 aria-modal="true"
-                aria-busy={findingReaderClosing}
+                aria-busy={findingReaderClosing || readerSwap !== "idle"}
                 aria-labelledby="finding-reader-title"
                 aria-describedby="finding-reader-summary"
                 data-keyboard-nav-block
@@ -1483,13 +1459,14 @@ export default function BirthdayExperience() {
                       {String(activeFinding + 1).padStart(2, "0")}
                     </span>
                     <h2 id="finding-reader-title" ref={findingReaderTitleRef} tabIndex={-1}>
-                      {activeFinding === 0 ? <><span className="reader-title-unit">让 AI 先问清楚，</span><span className="reader-title-unit">再开始</span></> : activeFindingData.title}
+                      {activeFinding === 0 ? <><span className="reader-title-unit">让 AI 先问清楚，</span><span className="reader-title-unit">再开始</span></> : activeFinding === 1 ? <><span className="reader-title-unit">把注意力，</span><span className="reader-title-unit">留给热爱的事</span></> : activeFindingData.title}
                     </h2>
                     <p id="finding-reader-summary">{activeFindingData.summary}</p>
                   </div>
                 </header>
                 <div
                   className="finding-reader-scroll"
+                  inert={readerSwap === "out" || findingReaderClosing}
                   ref={findingReaderScrollRef}
                   role="document"
                   aria-label={`${activeFindingData.title}正文`}
@@ -1497,7 +1474,16 @@ export default function BirthdayExperience() {
                 >
                   {renderFindingDetails(activeFinding)}
                   <nav className="finding-reader-next" aria-label="继续翻阅小礼物">
-                    <button className="finding-text-action" type="button" onClick={() => activeFinding < 2 ? openFindingReader(activeFinding + 1) : moveTo(4)}>
+                    <button
+                      className="finding-text-action"
+                      type="button"
+                      aria-disabled={findingReaderClosing || readerSwap !== "idle"}
+                      onClick={() => {
+                        if (findingReaderClosing || swapBusy.current) return;
+                        if (activeFinding < 2) openFindingReader(activeFinding + 1);
+                        else moveTo(4);
+                      }}
+                    >
                       {activeFinding < 2 ? `下一件：${findings[activeFinding + 1].title} →` : "去下一页 →"}
                     </button>
                   </nav>

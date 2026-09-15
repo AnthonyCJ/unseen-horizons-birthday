@@ -43,7 +43,7 @@ jobs:
       - name: Install test browsers
         run: npx playwright install --with-deps chromium webkit firefox
 
-      - name: Check actual question-card input and PNG downloads in three browsers
+      - name: Check desktop compatibility, full journey, recovery and downloads in three browsers
         run: npm run test:browser
 
       - name: Upload static export

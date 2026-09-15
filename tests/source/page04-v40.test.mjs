@@ -1,17 +1,18 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { CLARIFYING_PROMPT } from "../../lib/clarifying-prompt.mjs";
+import { CLARIFYING_PROMPT, METHOD_PROMPTS, PROMPT_VERSION } from "../../lib/clarifying-prompt.mjs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const experiencePath = new URL("../../app/BirthdayExperience.tsx", import.meta.url);
 const stylesPath = new URL("../../app/globals.css", import.meta.url);
 
-// Full v1.2.0 template body, excluding the source document heading and code fence.
-const expectedPromptHash = "8d0c54fb613d6ed75a254e9487dc3d2c54add78b1698d0c45b7192e4c906f557";
+// Full v1.2.1 template body, excluding the source document heading and code fence.
+const expectedPromptHash = "edaa3a726f29dd336049f4c222b806a760edf1372538a6088f2e0f206f77b315";
 
-test("implements the approved page 04 revision and full v1.2.0 Prompt without changing page 02", async () => {
+test("implements the approved page 04 revision and full v1.2.1 Prompt without changing page 02", async () => {
   const source = await readFile(experiencePath, "utf8");
+  const copySource = source.replace(/<[^>]*>/g, "");
 
   for (const copy of [
     "For the Days Ahead",
@@ -34,7 +35,7 @@ test("implements the approved page 04 revision and full v1.2.0 Prompt without ch
     "愿那些值得长久追问的问题，",
     "总能遇见你清醒、从容的目光。",
   ]) {
-    assert.ok(source.includes(copy), `Missing approved page 04 copy: ${copy}`);
+    assert.ok(copySource.includes(copy), `Missing approved page 04 copy: ${copy}`);
   }
 
   assert.equal(createHash("sha256").update(CLARIFYING_PROMPT).digest("hex"), expectedPromptHash);
@@ -65,15 +66,9 @@ test("uses the approved overview and focus-reader interaction without adding com
     "findingReaderCloseTimer.current = window.setTimeout(finishClosing, FINDING_READER_CLOSE_MS);",
     "body.style.position = \"fixed\"",
     "data-keyboard-nav-block",
-    "navigator.clipboard.writeText(CLARIFYING_PROMPT)",
-    "未能自动复制，可以手动选择文本",
-    "inert={!promptExpanded}",
-    'className={`prompt-drawer ${promptExpanded ? "is-open" : ""}`}',
+    '<MethodPrompt language={promptLanguage} onLanguageChange={setPromptLanguage} active={!findingReaderClosing && readerSwap !== "out"} />',
     "if (current === 3 && target !== 3) resetFindingReader();",
-    "resetSceneReveals();",
-    "resetReaderReveals();",
     "setActiveFinding(null);",
-    "setPromptExpanded(false);",
     'style={{ "--action-delay": "6200ms" } as CSSProperties}',
   ]) {
     assert.ok(source.includes(interaction), `Missing page 04 interaction: ${interaction}`);
@@ -92,7 +87,23 @@ test("uses the approved overview and focus-reader interaction without adding com
   assert.match(source, /textarea, input, select, \[contenteditable\]/);
   assert.match(source, /下一件：/);
   assert.doesNotMatch(source, /上一条|下一条|阅读进度|已读|顺序解锁/);
-  assert.match(source, /copyStatus === "success" \? "已复制" : "复制完整 Prompt"/);
+});
+
+test("pairs the full bilingual templates with their language-specific five-step guides", () => {
+  assert.equal(PROMPT_VERSION, "1.2.1");
+  assert.equal(METHOD_PROMPTS.zh.prompt, CLARIFYING_PROMPT);
+  assert.equal(createHash("sha256").update(METHOD_PROMPTS.en.prompt).digest("hex"), "195cdb263fd69f56ecd6a9c377b6bc279d1b63d7c342cea0c4651dd3a2668068");
+  assert.ok(METHOD_PROMPTS.en.prompt.endsWith("[Describe your request here. You may include any available background, materials, constraints, and preferences; you do not need to fill out the entire brief in advance.]"));
+  for (const language of ["zh", "en"]) {
+    const content = METHOD_PROMPTS[language];
+    assert.equal(content.guide.steps.length, 5);
+    assert.ok(content.guide.steps[2].body.includes(content.confirmation));
+    assert.ok(content.prompt.includes(content.confirmation));
+    assert.doesNotMatch(content.prompt, /^```|\n```/);
+    assert.ok(content.guide.scope.includes(PROMPT_VERSION));
+  }
+  assert.doesNotMatch(JSON.stringify(METHOD_PROMPTS.zh.guide), /Confirmed\. Please proceed\./);
+  assert.doesNotMatch(JSON.stringify(METHOD_PROMPTS.en.guide), /确认开始/);
 });
 
 test("uses a full-width overview and one reduced-motion-safe reader scroll context", async () => {
@@ -209,7 +220,7 @@ test("uses the approved artwork rhythm, finale mix, and smile trajectory", async
   assert.match(styles, /artwork-scene-exit 660ms/);
   assert.match(styles, /artwork-scene-enter 1320ms/);
   assert.match(styles, /artwork-mobile-art-settle 1320ms/);
-  assert.match(styles, /\.reading-recalled[^}]*animation:\s*none !important/s);
+  assert.doesNotMatch(styles, /\.reading-recalled/, "Revisits must retain the complete ritual reveal");
   assert.match(styles, /\.finale-smile-mark \{[^}]*2160ms 9800ms[^}]*cubic-bezier\(0\.4, 0, 0\.2, 1\)/s);
   assert.match(styles, /from \{ transform: translateY\(-0\.22em\) rotate\(0deg\); \}/);
   assert.match(styles, /to \{ transform: translateY\(0\.14em\) rotate\(90deg\); \}/);

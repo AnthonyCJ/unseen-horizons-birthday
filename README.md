@@ -48,19 +48,23 @@ Font waiting is bounded at 8 seconds, PNG encoding at 10 seconds. Closing or
 editing invalidates the previous work. Errors offer retry, a readable text image,
 or copying the complete draft. Device fallback glyphs are disclosed in the UI.
 
-The current user-authorized local trial pairs JasonHandwriting2-Regular (Chinese,
-Max's extended version) with Sacramento (Latin). Final visual acceptance is still
-pending. Both fonts are bundled under OFL 1.1 with their license and copyright
-information. Chinese WOFF2 bytes are unchanged from upstream commit
-`4825ddcd2f7b01288c8a61001d524346c28128f6`; no external review font is needed.
-`npm run verify:question-fonts` checks the recorded permission, resource hashes,
-licenses and copyright notice in `lib/question-font-license.json`.
+The accepted 0.4.4 question-card design uses Maoken Ying Bi Kai Shu 0.20
+(Chinese, renamed as Birthday Question Kai) with Kalam Regular 2.001
+(Latin, renamed as Birthday Question Latin). The fixed postcard uses Long Cang.
+The selected WOFF2 files include OFL 1.1 licenses and copyright notices.
+`npm run verify:question-fonts` checks the recorded embedding permission,
+resource hashes, licenses, and notices for the selected question-card and
+postcard fonts.
 
-The Chinese font maps 6,642 of the 6,763 GB2312 Han characters. Missing characters
-(including 闫 and 颍) use the existing device fallback with a visible notice;
-coverage is not complete, and mapping does not guarantee consistent glyph style.
-The previous HanyiSentyTea font is not bundled or requested. Switching fonts does
-not change the input limits, page 05 postcard font, or the five-screen experience.
+Character coverage is recorded in `lib/question-font-coverage.json`. Characters
+missing from the selected fonts use device fallback with a visible notice;
+coverage is not universal, and a mapped code point does not guarantee a matching
+handwritten style. Font selection does not change the input limits, static
+postcard, or five-screen experience.
+
+Local acceptance and automated engine checks do not establish physical-device
+coverage or deployment status. Check the actual release run before describing a
+version as published.
 
 ```text
 npx playwright install chromium webkit firefox

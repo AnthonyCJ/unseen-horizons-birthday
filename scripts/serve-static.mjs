@@ -90,13 +90,19 @@ const server = createServer((request, response) => {
     response.end(request.method === "HEAD" ? undefined : body);
     return;
   }
-  const rangeMatch = /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? "");
+  // Range applies to GET. HEAD must describe the complete representation.
+  const rangeMatch = request.method === "GET" && /^bytes=(\d*)-(\d*)$/.exec(request.headers.range ?? "");
 
   if (rangeMatch) {
-    const start = rangeMatch[1] === "" ? 0 : Number.parseInt(rangeMatch[1], 10);
-    const end = rangeMatch[2] === "" ? fileSize - 1 : Number.parseInt(rangeMatch[2], 10);
+    const suffix = rangeMatch[1] === "";
+    const requestedStart = suffix ? 0 : Number(rangeMatch[1]);
+    const requestedEnd = rangeMatch[2] === "" ? fileSize - 1 : Number(rangeMatch[2]);
+    const start = suffix ? Math.max(0, fileSize - requestedEnd) : requestedStart;
+    const end = suffix ? fileSize - 1 : Math.min(requestedEnd, fileSize - 1);
 
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start || end >= fileSize) {
+    if (!Number.isSafeInteger(requestedStart) || !Number.isSafeInteger(requestedEnd)
+      || (suffix && (rangeMatch[2] === "" || requestedEnd <= 0))
+      || start < 0 || start >= fileSize || end < start) {
       response.writeHead(416, { "Content-Range": `bytes */${fileSize}` }).end();
       return;
     }
@@ -117,5 +123,5 @@ const server = createServer((request, response) => {
 });
 
 server.listen(port, "127.0.0.1", () => {
-  console.log(`Static preview${testEntrance ? " (synthetic entrance)" : ""}: http://127.0.0.1:${port}${basePath}/${testEntrance ? `?preview=1#/open/${testKey}` : ""}`);
+  console.log(`Static preview${testEntrance ? " (synthetic entrance)" : ""}: http://127.0.0.1:${server.address().port}${basePath}/${testEntrance ? `?preview=1#/open/${testKey}` : ""}`);
 });

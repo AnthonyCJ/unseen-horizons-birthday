@@ -344,12 +344,19 @@ test("unavailable canvas, null/throwing PNG encoders and a failed later page all
     await preview(page).getByRole("button", { name: "返回填写" }).click();
   }
   await open(page); await ready(page);
+  const firstPageSource = await preview(page).locator("img").getAttribute("src");
   await page.evaluate(() => { window.canvasFault = "null"; });
   await preview(page).getByRole("button", { name: "下一张" }).click();
-  await expect(preview(page).getByRole("alert")).toBeVisible(); await expect(preview(page)).toContainText("2 / 2");
+  await expect(preview(page).getByRole("alert")).toBeVisible();
+  await expect(preview(page)).toContainText("1 / 2");
+  await expect(preview(page).locator("img")).toHaveAttribute("src", firstPageSource);
+  await expect(preview(page).locator("img")).toHaveAttribute("alt", "问题签图片，第 1 页，共 2 页");
+  await expect(preview(page).getByRole("button", { name: "保存第 1 张图片", exact: true })).toBeDisabled();
   await page.evaluate(() => { window.canvasFault = ""; });
   await preview(page).getByRole("button", { name: "重试这一张" }).click(); await ready(page);
   await expect(preview(page)).toContainText("2 / 2");
+  await expect(preview(page).locator("img")).not.toHaveAttribute("src", firstPageSource);
+  await expect(preview(page).getByRole("button", { name: "保存第 2 张图片", exact: true })).toBeEnabled();
 });
 
 test("PNG timeout and late completion cannot replace a newer preview", async ({ page }) => {

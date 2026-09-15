@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { loadPostcard, POSTCARD_FILENAME, POSTCARD_SOURCE } from "../lib/postcard.mjs";
+import { useSoftDismiss } from "./SoftMotion";
 
 export default function PostcardPreview({ onClose }: { onClose: () => void }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -20,6 +21,8 @@ export default function PostcardPreview({ onClose }: { onClose: () => void }) {
       trigger?.focus({ preventScroll: true });
     };
   }, []);
+
+  const { closing, close } = useSoftDismiss(dialogRef, () => dialogRef.current?.close());
 
   const save = async () => {
     if (saving === "pending") return;
@@ -46,7 +49,9 @@ export default function PostcardPreview({ onClose }: { onClose: () => void }) {
   return (
     <dialog
       ref={dialogRef}
-      className="postcard-dialog"
+      className={`postcard-dialog soft-dialog ${closing ? "is-closing" : ""}`}
+      tabIndex={-1}
+      onCancel={(event) => { event.preventDefault(); close(); }}
       aria-labelledby="postcard-preview-title"
       aria-describedby="postcard-help"
       onClose={onClose}
@@ -55,7 +60,7 @@ export default function PostcardPreview({ onClose }: { onClose: () => void }) {
     >
       <header className="postcard-toolbar">
         <h2 id="postcard-preview-title">留一张明信片</h2>
-        <button className="button button-quiet" type="button" onClick={() => dialogRef.current?.close()} autoFocus>
+        <button className="button button-quiet" type="button" onClick={close} autoFocus>
           关闭预览
         </button>
       </header>
