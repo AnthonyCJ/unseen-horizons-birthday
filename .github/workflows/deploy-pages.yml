@@ -46,6 +46,17 @@ jobs:
       - name: Check desktop compatibility, full journey, recovery and downloads in three browsers
         run: npm run test:browser
 
+      - name: Preserve failed browser diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/browser-regression/
+            playwright-report/browser-regression/
+          retention-days: 1
+          if-no-files-found: ignore
+
       - name: Upload static export
         uses: actions/upload-pages-artifact@v4
         with:

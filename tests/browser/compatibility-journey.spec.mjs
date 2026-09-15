@@ -23,8 +23,9 @@ test("normal motion: first visit completes all five pages and replay @journey", 
   await expect(page.locator(".stage")).toHaveAttribute("data-page", "2");
   await expect(page.locator(".stage")).toHaveAttribute("data-page", "3", { timeout: 23000 });
   await scene(page, 3);
-  const playback = await page.locator("audio").evaluate(el => ({ codec: el.canPlayType("audio/mpeg"), paused: el.paused, time: el.currentTime, error: el.error?.code ?? null }));
+  const playback = await page.locator("audio").evaluate(el => ({ codec: el.canPlayType("audio/mpeg"), paused: el.paused, time: el.currentTime, error: el.error?.code ?? null, message: el.error?.message ?? null, readyState: el.readyState, networkState: el.networkState }));
   await info.attach("native-audio", { contentType: "application/json", body: JSON.stringify(playback) });
+  console.log("NATIVE_AUDIO_DIAGNOSTIC", JSON.stringify(playback));
   if (playback.codec) {
     expect(playback.error).toBeNull();
     expect(playback.time).toBeGreaterThan(0);

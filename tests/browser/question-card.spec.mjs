@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { PNG } from "pngjs";
+import { scene, openFinding } from "./compatibility-helpers.mjs";
 
 const url = "/unseen-horizons-birthday/#/open/birthday_review_2026_local_test0";
 const draftKey = "unseen-horizons-birthday:2026:question-draft:v1:gift";
@@ -12,7 +13,8 @@ async function enter(page, options = {}) {
   }, { draft: options.draft, key: draftKey });
   await page.goto(url);
   await page.getByRole("button", { name: "回看三件小东西", exact: true }).click();
-  await page.locator("#finding-toggle-3").click();
+  await scene(page, 4);
+  await openFinding(page, 3);
   const input = page.locator("#inspiration-text");
   await expect(input).toBeEnabled();
   await input.scrollIntoViewIfNeeded();
@@ -73,7 +75,22 @@ for (const [kind, text] of Object.entries({ chinese: "愿新的一岁，继续�
 test("device glyphs and composed accents stay whole and disclose the fallback", async ({ page }, info) => {
   const input = await enter(page);
   const text = "咖啡与好奇心。café é\n👩🏽‍💻 🇨🇳 👨‍👩‍👧‍👦\n𠮷与未来";
-  await input.fill(text); await open(page); await ready(page);
+  await input.fill(text);
+  await expect(input).toHaveValue(text);
+  await open(page);
+  try {
+    await ready(page);
+  } catch (error) {
+    const details = await page.evaluate(() => ({
+      inputValue: document.querySelector("#inspiration-text")?.value,
+      activeElement: document.activeElement?.id,
+      dialogText: document.querySelector(".question-export-dialog")?.textContent,
+      fonts: [...document.fonts].map(face => ({ family: face.family, status: face.status })),
+    })).catch(() => ({ unavailable: true }));
+    console.log("QUESTION_EXPORT_DIAGNOSTIC", JSON.stringify(details));
+    await info.attach("question-export-diagnostic", { contentType: "application/json", body: JSON.stringify(details, null, 2) });
+    throw error;
+  }
   await expect(preview(page)).toContainText("部分字符使用设备字形");
   const { png } = await save(page, info, "device-glyphs.png");
   expect(bodyInk(png).outside).toBe(0);
