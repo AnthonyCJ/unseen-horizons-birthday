@@ -101,7 +101,7 @@ test("postcard image and save failures offer retry and original-image fallback @
   failFetch = true;
   await dialog.getByRole("button", { name: "保存图片", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "重试保存", exact: true })).toBeEnabled();
-  await expect(dialog.getByRole("link", { name: "打开原图", exact: true })).toHaveAttribute("href", /\.png$/);
+  await expect(dialog.getByRole("link", { name: "打开原图（新标签）", exact: true })).toHaveAttribute("href", /\.png$/);
   failFetch = false;
   const pending = page.waitForEvent("download");
   await dialog.getByRole("button", { name: "重试保存", exact: true }).click();

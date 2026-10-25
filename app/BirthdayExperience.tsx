@@ -3,8 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, SyntheticEvent } from "react";
 import PostcardPreview from "./PostcardPreview";
+import BookmarkPreview from "./BookmarkPreview";
+import { BOOKMARK_SOURCE } from "../lib/bookmark.mjs";
+import { fadeMediaVolume } from "../lib/audio-volume.mjs";
 import type { PromptLanguage } from "../lib/clarifying-prompt.mjs";
 import MethodPrompt from "./MethodPrompt";
+import FindingContentReveal from "./FindingContentReveal";
 import { useQuestionDraft } from "./useQuestionDraft";
 import InspirationNote from "./InspirationNote";
 import { useReadingProgress } from "./useReadingProgress";
@@ -59,7 +63,7 @@ const findings = [
   {
     kind: "question", label: "一张可以带走的问题签",
     title: "带一个问题去远方",
-    summary: "有些问题，会让未来多一点值得期待的事。",
+    summary: "有些问题，会让往后的日子多一份期待。",
   },
 ] as const;
 
@@ -346,6 +350,10 @@ export default function BirthdayExperience() {
   const [promptLanguage, setPromptLanguage] = useState<PromptLanguage>("zh");
   const [finaleStarted, setFinaleStarted] = useState(false);
   const [postcardOpen, setPostcardOpen] = useState(false);
+  const postcardTrigger = useRef<HTMLButtonElement>(null);
+  const [bookmarkOpen, setBookmarkOpen] = useState(false);
+  const bookmarkTrigger = useRef<HTMLButtonElement>(null);
+  const bookmarkReadingScroll = useRef(0);
   const reading = useReadingProgress(current, activeFinding, findingReaderVisible);
   const inspiration = useQuestionDraft();
   const [letterSyncAdjustmentMs, setLetterSyncAdjustmentMs] = useState(0);
@@ -361,7 +369,7 @@ export default function BirthdayExperience() {
   const musicSession = useRef(0);
   const sceneVolume = useRef(STANDARD_VOLUME);
   const timers = useRef<number[]>([]);
-  const volumeFrame = useRef<number | null>(null);
+  const volumeFade = useRef<(() => void) | null>(null);
   const lightSyncFrame = useRef<number | null>(null);
   const lightPointerFrame = useRef<number | null>(null);
   const lightPointerBounds = useRef<DOMRect | null>(null);
@@ -371,6 +379,7 @@ export default function BirthdayExperience() {
   const swapFrame = useRef<number | null>(null);
   const swapBusy = useRef(false);
   const findingButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const findingFocusRestore = useRef<number | null>(null);
   const findingReaderRef = useRef<HTMLElement>(null);
   const findingReaderTitleRef = useRef<HTMLHeadingElement>(null);
   const findingReaderScrollRef = useRef<HTMLDivElement>(null);
@@ -384,8 +393,8 @@ export default function BirthdayExperience() {
     const timer = window.setTimeout(() => {
       if (musicSession.current !== session || resetInProgress.current) return;
       musicSession.current += 1;
-      if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
-      volumeFrame.current = null;
+      volumeFade.current?.();
+      volumeFade.current = null;
       const audio = audioRef.current;
       audio?.pause();
       if (audio) audio.volume = sceneVolume.current;
@@ -416,6 +425,8 @@ export default function BirthdayExperience() {
   }, []);
 
   const resetFindingReader = useCallback(() => {
+    findingFocusRestore.current = null;
+    setBookmarkOpen(false);
     cancelSwap();
     setReaderSwap("idle");
     clearFindingReaderCloseTimer();
@@ -428,7 +439,7 @@ export default function BirthdayExperience() {
     () => () => {
       clearTimers();
       cancelSwap();
-      if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
+      volumeFade.current?.();
       if (lightSyncFrame.current !== null) window.cancelAnimationFrame(lightSyncFrame.current);
       if (lightPointerFrame.current !== null) window.cancelAnimationFrame(lightPointerFrame.current);
       if (findingReaderCloseTimer.current !== null) window.clearTimeout(findingReaderCloseTimer.current);
@@ -648,20 +659,11 @@ export default function BirthdayExperience() {
   const fadeVolume = useCallback((target: number, duration: number, onDone?: () => void) => {
     const audio = audioRef.current;
     if (!audio) return;
-    if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
-    const start = audio.volume;
-    const startTime = performance.now();
-
-    const tick = (time: number) => {
-      const progress = Math.min(1, (time - startTime) / duration);
-      audio.volume = Math.max(0, Math.min(1, start + (target - start) * progress));
-      if (progress < 1) volumeFrame.current = window.requestAnimationFrame(tick);
-      else {
-        volumeFrame.current = null;
-        onDone?.();
-      }
-    };
-    volumeFrame.current = window.requestAnimationFrame(tick);
+    volumeFade.current?.();
+    volumeFade.current = fadeMediaVolume(audio, target, duration, () => {
+      volumeFade.current = null;
+      onDone?.();
+    });
   }, []);
 
   useEffect(() => {
@@ -758,8 +760,8 @@ export default function BirthdayExperience() {
   const handleMusicEnded = useCallback(() => {
     if (resetInProgress.current || pauseInProgress.current) return;
     pauseInProgress.current = false;
-    if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
-    volumeFrame.current = null;
+    volumeFade.current?.();
+    volumeFade.current = null;
 
     if (current > 0 && musicState !== "paused") {
       playMusic(true, 1800);
@@ -825,8 +827,8 @@ export default function BirthdayExperience() {
       // volume effect cannot replace this fade and strand the control in "pausing".
       sceneVolume.current = STANDARD_VOLUME;
       if (reducedMotion || audio.paused) {
-        if (volumeFrame.current !== null) window.cancelAnimationFrame(volumeFrame.current);
-        volumeFrame.current = null;
+        volumeFade.current?.();
+        volumeFade.current = null;
         audio.pause();
         pauseInProgress.current = false;
         audio.currentTime = 0;
@@ -966,14 +968,12 @@ export default function BirthdayExperience() {
     const triggerIndex = activeFinding;
     const finishClosing = () => {
       findingReaderCloseTimer.current = null;
+      findingFocusRestore.current = restoreFocus ? triggerIndex : null;
       setReaderSwap("idle");
       setFindingReaderVisible(false);
       setFindingReaderClosing(false);
       setActiveFinding(null);
 
-      if (restoreFocus) {
-        window.requestAnimationFrame(() => findingButtonRefs.current[triggerIndex]?.focus({ preventScroll: true }));
-      }
     };
 
     if (reducedMotion) {
@@ -1022,6 +1022,15 @@ export default function BirthdayExperience() {
       body.style.width = previousBodyStyles.width;
       window.scrollTo({ top: overviewScrollPosition.current, left: 0, behavior: "auto" });
     };
+  }, [isFindingReaderOpen]);
+
+  useEffect(() => {
+    if (isFindingReaderOpen || findingFocusRestore.current === null) return;
+    const index = findingFocusRestore.current;
+    findingFocusRestore.current = null;
+    // Restore focus after React removes the reader and releases overview inert.
+    const frame = window.requestAnimationFrame(() => findingButtonRefs.current[index]?.focus({ preventScroll: true }));
+    return () => window.cancelAnimationFrame(frame);
   }, [isFindingReaderOpen]);
 
   const handleFindingReaderKeyDown = useCallback((event: React.KeyboardEvent<HTMLElement>) => {
@@ -1084,45 +1093,57 @@ export default function BirthdayExperience() {
   const renderFindingDetails = (index: number) => {
     if (index === 0) {
       return (
-        <div className="finding-detail finding-detail-method">
-          <p>
+        <FindingContentReveal key={index} className="finding-detail finding-detail-method" ready={findingReaderVisible || findingReaderClosing}>
+          <p data-finding-reveal="2500">
             这段 Prompt 用来请 AI 先理解你想做的事，把背景、期待与边界整理成一份简报，等你确认后再着手推进。
           </p>
-          <p>
+          <p data-finding-reveal="4700">
             念头不必一开始就很完整。研究里的疑问、生活中的计划，或一次突如其来的灵感，都可以成为对话的开端。
           </p>
-          <MethodPrompt language={promptLanguage} onLanguageChange={setPromptLanguage} active={!findingReaderClosing && readerSwap !== "out"} />
           <p className="finding-poem">
-            <span>愿初生的灵感，</span>
-            <span>在想象里舒展翅膀；</span>
-            <span>从一个念头出发，</span>
-            <span>飞向未曾设想的远方。</span>
+            <span data-finding-reveal="8000" data-finding-duration="2000">望初生的灵感，</span>
+            <span data-finding-reveal="11400" data-finding-duration="2000">在交互中逐渐明朗；</span>
+            <span data-finding-reveal="14800" data-finding-duration="2000">舒展想象的翅膀，</span>
+            <span data-finding-reveal="18200" data-finding-duration="2000">飞向未曾设想的远方。</span>
           </p>
-        </div>
+          <MethodPrompt language={promptLanguage} onLanguageChange={setPromptLanguage} active={!findingReaderClosing && readerSwap !== "out"} />
+        </FindingContentReveal>
       );
     }
 
     if (index === 1) {
       return (
-        <div className="finding-detail finding-detail-harness">
-          <p>
-            有些想法，需要一段安静的时间，才会显出自己的轮廓。把注意力留给热爱的事，也是在照看那些尚未成形的可能。
+        <FindingContentReveal key={index} className="finding-detail finding-detail-harness" ready={findingReaderVisible || findingReaderClosing}>
+          <p data-finding-reveal="2500">
+            有些想法，需要一段安静的时间，才会慢慢显出轮廓。
           </p>
-          <section className="finding-harness-concept" aria-labelledby="finding-harness-word">
+          <section className="finding-harness-concept" aria-labelledby="finding-harness-word" data-finding-reveal="4000">
             <h3 id="finding-harness-word" className="finding-harness-word" lang="en">Harness Self</h3>
             <p className="finding-harness-anchor"><span>让注意力的去向，</span><span>更多由自己决定。</span></p>
-            <p className="finding-harness-meaning">在这页手记里，我想用它说的是：把心思留给在意的事，也让暂时不急的声音等一等。</p>
+            <p className="finding-harness-meaning">在这页手记里，我想分享的是：把心思留给在意的事，也让暂时不急的声音等一等。</p>
           </section>
-          <p className="finding-harness-rhythm">
-            <span>投入与停歇，</span><span>都可以有从容的节奏。</span>
+          <p className="finding-harness-rhythm" data-finding-reveal="5800">
+            <span>可以尽兴地投入，</span><span>也可以安心地停歇。</span>
           </p>
           <p className="finding-poem finding-harness-closing">
-            <span>愿求索有回响，</span>
-            <span>停歇有晴朗；</span>
-            <span>愿那些值得长久追问的问题，</span>
-            <span><span className="finding-harness-phrase">总能遇见你</span><span className="finding-harness-phrase">清醒、从容的目光。</span></span>
+            <span data-finding-reveal="9200" data-finding-duration="2000">求索有回响，</span>
+            <span data-finding-reveal="12600" data-finding-duration="2000">停歇有晴朗；</span>
+            <span data-finding-reveal="16000" data-finding-duration="2000">愿那些值得长久追问的问题，</span>
+            <span data-finding-reveal="20200" data-finding-duration="2000"><span className="finding-harness-phrase">总能遇见你</span><span className="finding-harness-phrase">清醒、从容的目光。</span></span>
           </p>
-        </div>
+          <div className="bookmark-entry">
+            {/* The thumbnail and download share the accepted, unmodified artwork. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={BOOKMARK_SOURCE} width={1080} height={2880} alt="" loading="lazy" />
+            <div><p>把这几句话，留在书页间。</p>
+              <button ref={bookmarkTrigger} type="button" className="keepsake-control keepsake-entry" onClick={() => {
+                if (findingReaderClosing || readerSwap !== "idle") return;
+                bookmarkReadingScroll.current = findingReaderScrollRef.current?.scrollTop ?? 0;
+                setBookmarkOpen(true);
+              }}>看看书签<span aria-hidden="true">→</span></button>
+            </div>
+          </div>
+        </FindingContentReveal>
       );
     }
 
@@ -1180,7 +1201,7 @@ export default function BirthdayExperience() {
                   </h1>
                   <Reveal delay={4200} className="copy-secondary subtitle">A Tiny Birthday Field Note</Reveal>
                 </div>
-                <Reveal delay={6000} className="intro-copy">今天，有一份小小的生日手记，想与你分享。</Reveal>
+                <Reveal delay={6000} className="intro-copy">今天，想与你分享一份小小的生日手记。</Reveal>
               </div>
               <div className="scene-actions delayed-action" style={{ "--action-delay": "8000ms" } as CSSProperties}>
                 <button className="button button-primary cover-primary-button" type="button" onClick={openNotebook}>
@@ -1311,9 +1332,9 @@ export default function BirthdayExperience() {
                 <CharacterReveal text="你依然拥有追问世界的好奇，" baseDelay={14900} unfoldDuration={4100} />
                 <CharacterReveal text="也常有抬头看风景的轻松。" baseDelay={19900} unfoldDuration={4400} />
               </p>
-              <p className="letter-body letter-closing" aria-label="愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。">
+              <p className="letter-body letter-closing" aria-label="祝研究顺利，生活明亮；愿细碎的欢喜，落满日常。">
                 <span className="letter-sentence">
-                  <CharacterReveal text="愿研究顺利，" baseDelay={25400} unfoldDuration={4400} fadeDuration={3200} />
+                  <CharacterReveal text="祝研究顺利，" baseDelay={25400} unfoldDuration={4400} fadeDuration={3200} />
                   <CharacterReveal text="生活明亮；" baseDelay={30400} unfoldDuration={4250} fadeDuration={3200} />
                 </span>
                 <span className="letter-sentence">
@@ -1437,12 +1458,12 @@ export default function BirthdayExperience() {
                 role="dialog"
                 aria-modal="true"
                 aria-busy={findingReaderClosing || readerSwap !== "idle"}
-                aria-labelledby="finding-reader-title"
-                aria-describedby="finding-reader-summary"
+                aria-labelledby={bookmarkOpen ? "bookmark-preview-title" : "finding-reader-title"}
+                aria-describedby={bookmarkOpen ? undefined : "finding-reader-summary"}
                 data-keyboard-nav-block
                 onKeyDown={handleFindingReaderKeyDown}
               >
-                <header className="finding-reader-header">
+                <header className="finding-reader-header" hidden={bookmarkOpen}>
                   <div className="finding-reader-toolbar">
                   <button
                     className="finding-reader-back"
@@ -1466,6 +1487,7 @@ export default function BirthdayExperience() {
                 </header>
                 <div
                   className="finding-reader-scroll"
+                  hidden={bookmarkOpen}
                   inert={readerSwap === "out" || findingReaderClosing}
                   ref={findingReaderScrollRef}
                   role="document"
@@ -1488,6 +1510,13 @@ export default function BirthdayExperience() {
                     </button>
                   </nav>
                 </div>
+                {bookmarkOpen && <BookmarkPreview onClose={() => {
+                  setBookmarkOpen(false);
+                  window.requestAnimationFrame(() => {
+                    findingReaderScrollRef.current?.scrollTo({ top: bookmarkReadingScroll.current, left: 0, behavior: "auto" });
+                    bookmarkTrigger.current?.focus({ preventScroll: true });
+                  });
+                }} />}
               </section>
             </div>
           )}
@@ -1512,7 +1541,7 @@ export default function BirthdayExperience() {
                 ref={headingRef as React.RefObject<HTMLHeadingElement>}
                 tabIndex={-1}
               >
-              <CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} />
+              <CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} wrapAfter={4} />
               </h2>
               <p className="finale-wish">
                 <Reveal delay={5400}>愿你一路保有好奇，</Reveal>
@@ -1524,11 +1553,11 @@ export default function BirthdayExperience() {
               </p>
               <Reveal delay={10800} className="copy-secondary signature">Happy Birthday · XCJ · 2026</Reveal>
               <Reveal delay={12400} className="postcard-entry">
-                <button className="postcard-open" type="button" onClick={() => setPostcardOpen(true)}>保存这份祝福</button>
+                <button ref={postcardTrigger} className="postcard-open" type="button" onClick={() => setPostcardOpen(true)}>保存这份祝福</button>
               </Reveal>
             </div>
             <div className="scene-actions delayed-action" style={{ "--action-delay": "12800ms" } as CSSProperties}>
-              <BackButton onClick={() => moveTo(current - 1)} />
+              <BackButton label="← 回看三件小东西" onClick={() => moveTo(current - 1)} />
               <button className="button" type="button" onClick={restartJourney}>
                 重新翻阅
               </button>
@@ -1615,14 +1644,14 @@ export default function BirthdayExperience() {
         </div>
       </div>
 
-      {postcardOpen && <PostcardPreview onClose={() => setPostcardOpen(false)} />}
+      {postcardOpen && <PostcardPreview returnFocusRef={postcardTrigger} onClose={() => setPostcardOpen(false)} />}
 
       <noscript>
         <style>{`.stage-shell{display:none!important}.noscript-note{display:block!important}`}</style>
         <article className="noscript-note">
-          <p>Field Note · 11 / 13</p><h1>未知风光</h1><p>今天，有一份小小的生日手记，想与你分享。</p><hr />
+          <p>Field Note · 11 / 13</p><h1>未知风光</h1><p>今天，想与你分享一份小小的生日手记。</p><hr />
           <h2>点亮这一天</h2><hr />
-          <p>生日快乐，Charlotte。</p><p>愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。</p><hr />
+          <p>生日快乐，Charlotte。</p><p>祝研究顺利，生活明亮；愿细碎的欢喜，落满日常。</p><hr />
           <h2>想与你分享的三件小东西</h2>{findings.map((finding) => <p key={finding.title}>{finding.title}：{finding.summary}</p>)}<hr />
           <h2>不知远方还藏着怎样的风光</h2><p>愿你一路保有好奇，也常有惊喜。 ：）</p><p>Happy Birthday · XCJ · 2026</p>
         </article>

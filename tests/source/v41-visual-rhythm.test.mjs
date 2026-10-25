@@ -94,7 +94,7 @@ test("preserves gentle title pacing with a longer four-character cover reveal", 
     '<CharacterReveal text="未知风光" baseDelay={1000} step={450} fadeDuration={1400} />',
     '<CharacterReveal text="生日快乐，Charlotte。" baseDelay={LETTER_GREETING_DELAY_MS} />',
     '<CharacterReveal text="想与你分享的三件小东西" baseDelay={1050} wrapAfter={6} />',
-    '<CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} />',
+    '<CharacterReveal text="不知远方还藏着怎样的风光" baseDelay={1350} wrapAfter={4} />',
   ]) {
     assert.ok(source.includes(titlePace), `Missing revised title pace: ${titlePace}`);
   }
@@ -482,7 +482,7 @@ test("locks the approved page 03 copy, order, and length-aware phrase windows", 
   for (const copy of [
     "生日快乐，Charlotte。",
     "愿新的一岁里，你依然拥有追问世界的好奇，也常有抬头看风景的轻松。",
-    "愿研究顺利，生活明亮；愿细碎的欢喜，落满日常。",
+    "祝研究顺利，生活明亮；愿细碎的欢喜，落满日常。",
     "← 回到封面",
     "回到封面并结束本轮配乐",
     "继续翻阅",
@@ -496,7 +496,7 @@ test("locks the approved page 03 copy, order, and length-aware phrase windows", 
 
   assert.ok(
     page03.includes('text="也常有抬头看风景的轻松。" baseDelay={19900} unfoldDuration={4400}')
-      && page03.includes('text="愿研究顺利，" baseDelay={25400} unfoldDuration={4400}'),
+      && page03.includes('text="祝研究顺利，" baseDelay={25400} unfoldDuration={4400}'),
     "The first paragraph leaves breathing room before the 41-second closing blessing",
   );
   assert.ok(

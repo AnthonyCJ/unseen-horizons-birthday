@@ -27,12 +27,12 @@ async function open(page) {
 }
 async function ready(page) {
   await expect(preview(page).locator("img")).toBeVisible();
-  await expect(preview(page).getByRole("button", { name: /^保存/ })).toBeEnabled();
+  await expect(preview(page).getByRole("button", { name: /^保存(?:图片|第 \d+ 张)$/ })).toBeEnabled();
 }
 async function save(page, info, name) {
   const expected = await preview(page).locator("img").evaluate(async (img) => Array.from(new Uint8Array(await (await fetch(img.src)).arrayBuffer())));
   const pending = page.waitForEvent("download");
-  await preview(page).getByRole("button", { name: /^保存/ }).click();
+  await preview(page).getByRole("button", { name: /^保存(?:图片|第 \d+ 张)$/ }).click();
   const download = await pending;
   await download.saveAs(info.outputPath(name));
   const bytes = await readFile(info.outputPath(name));
@@ -194,12 +194,17 @@ test("late copy successes and failures cannot change a reopened preview", async 
     await input.fill(`Before ${outcome}`); await open(page); await ready(page);
     await preview(page).getByRole("button", { name: "复制文字", exact: true }).click();
     await preview(page).getByRole("button", { name: "返回填写", exact: true }).click();
-    await input.fill(`After ${outcome}`); await open(page); await ready(page);
+    // Browser Back completes asynchronously; wait until the input is no longer inert.
+    await expect(preview(page)).not.toBeVisible();
+    await input.fill(`After ${outcome}`);
+    await expect(input).toHaveValue(`After ${outcome}`);
+    await open(page); await ready(page);
     await page.evaluate((outcome) => window.pendingCopies.shift()[outcome](), outcome);
     await expect(preview(page).locator(".question-copy-button")).toHaveText("复制文字");
     await expect(preview(page).locator(".question-copy-feedback")).toBeEmpty();
     await expect(preview(page).getByRole("textbox", { name: "可复制的完整原文" })).toHaveCount(0);
     await preview(page).getByRole("button", { name: "返回填写", exact: true }).click();
+    await expect(preview(page)).not.toBeVisible();
     await expect(input).toHaveValue(`After ${outcome}`);
   }
 });
@@ -261,15 +266,20 @@ test("20 pages stay bounded, requested downloads differ and closing releases eve
     URL.revokeObjectURL = (url) => { window.cardUrls.delete(url); revoke(url); };
   });
   const input = await enter(page); await input.fill(Array.from({ length: 257 }, (_, i) => `Line ${i + 1}`).join("\n"));
-  await open(page); await ready(page); await expect(preview(page)).toContainText("1 / 20");
+  await open(page); await ready(page); await expect(preview(page)).toContainText("第 1 张，共 20 张");
   const first = await save(page, info, "first-of-20.png");
-  for (let n = 2; n <= 20; n++) { await preview(page).getByRole("button", { name: "下一张" }).click(); await ready(page); await expect(preview(page)).toContainText(`${n} / 20`); }
+  for (let n = 2; n <= 20; n++) { await preview(page).getByRole("button", { name: "下一张" }).click(); await ready(page); await expect(preview(page)).toContainText(`第 ${n} 张，共 20 张`); }
   const last = await save(page, info, "last-of-20.png");
   expect(last.filename).toBe("Charlotte-question-2026-20.png"); expect(last.hash).not.toBe(first.hash);
   expect(await page.evaluate(() => window.peakCardUrls)).toBeLessThanOrEqual(3);
   await preview(page).getByRole("button", { name: "返回填写" }).click();
+  await expect(preview(page)).not.toBeVisible();
   expect(await page.evaluate(() => window.cardUrls.size)).toBe(0);
-  for (let i = 0; i < 20; i++) { await open(page); await ready(page); await preview(page).getByRole("button", { name: "返回填写" }).click(); }
+  for (let i = 0; i < 20; i++) {
+    await open(page); await ready(page);
+    await preview(page).getByRole("button", { name: "返回填写" }).click();
+    await expect(preview(page)).not.toBeVisible();
+  }
   expect(await page.evaluate(() => window.cardUrls.size)).toBe(0);
 });
 
@@ -302,9 +312,12 @@ test("narrow, short and desktop layouts expose the input and primary action with
     const backBox = await back.boundingBox();
     const heading = await preview(page).getByRole("heading", { name: "你的问题签", exact: true }).boundingBox();
     expect(backBox.height).toBeGreaterThanOrEqual(44);
-    expect(backBox.y + backBox.height).toBeLessThanOrEqual(heading.y);
+    expect(heading.x + heading.width).toBeLessThanOrEqual(backBox.x - 4);
+    expect(Math.abs(backBox.y + backBox.height / 2 - heading.y - heading.height / 2)).toBeLessThanOrEqual(1);
+    expect(backBox.y).toBeGreaterThanOrEqual(0);
+    expect(backBox.y + backBox.height).toBeLessThanOrEqual(height);
     expect(await input.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBe(width <= 420 ? 18 : 20);
-    await preview(page).getByRole("button", { name: /^保存/ }).scrollIntoViewIfNeeded();
+    await preview(page).getByRole("button", { name: /^保存(?:图片|第 \d+ 张)$/ }).scrollIntoViewIfNeeded();
     expect(await preview(page).evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);
     await page.screenshot({ path: info.outputPath(`viewport-${width}-${height}.png`) });
     await page.keyboard.press("Escape"); await expect(preview(page)).not.toBeVisible(); await expect(button).toBeFocused();
@@ -348,10 +361,12 @@ test("missing or corrupt handwriting font gives a readable fallback and can retr
   const input = await enter(page); await input.fill("愿每一天，都有新的好奇。");
   await open(page); await expect(preview(page).getByRole("alert")).toContainText("字迹样式暂时没准备好");
   await preview(page).getByRole("button", { name: "先用清晰文字版", exact: true }).click(); await ready(page);
-  await expect(preview(page)).toContainText("清晰文字版");
+  await expect(preview(page).getByRole("heading", { name: /^你的问题签\s*清晰文字版$/ })).toBeVisible();
+  await expect(preview(page).locator(".keepsake-title-detail")).toHaveCSS("font-size", "13px");
   await preview(page).getByRole("button", { name: "返回填写" }).click();
   await page.unroute("**/fonts/question/maoken-regular.woff2");
-  await open(page); await ready(page); await expect(preview(page)).not.toContainText("清晰文字版");
+  await open(page); await ready(page);
+  await expect(preview(page).getByRole("heading", { name: "你的问题签", exact: true })).toBeVisible();
 });
 
 test("font wait has a deadline and cancellation prevents an old preview reopening", async ({ page }) => {
@@ -398,15 +413,15 @@ test("unavailable canvas, null/throwing PNG encoders and a failed later page all
   await page.evaluate(() => { window.canvasFault = "null"; });
   await preview(page).getByRole("button", { name: "下一张" }).click();
   await expect(preview(page).getByRole("alert")).toBeVisible();
-  await expect(preview(page)).toContainText("1 / 2");
+  await expect(preview(page)).toContainText("第 1 张，共 2 张");
   await expect(preview(page).locator("img")).toHaveAttribute("src", firstPageSource);
   await expect(preview(page).locator("img")).toHaveAttribute("alt", "问题签图片，第 1 页，共 2 页");
-  await expect(preview(page).getByRole("button", { name: "保存第 1 张图片", exact: true })).toBeDisabled();
+  await expect(preview(page).getByRole("button", { name: "保存第 1 张", exact: true })).toBeDisabled();
   await page.evaluate(() => { window.canvasFault = ""; });
   await preview(page).getByRole("button", { name: "重试这一张" }).click(); await ready(page);
-  await expect(preview(page)).toContainText("2 / 2");
+  await expect(preview(page)).toContainText("第 2 张，共 2 张");
   await expect(preview(page).locator("img")).not.toHaveAttribute("src", firstPageSource);
-  await expect(preview(page).getByRole("button", { name: "保存第 2 张图片", exact: true })).toBeEnabled();
+  await expect(preview(page).getByRole("button", { name: "保存第 2 张", exact: true })).toBeEnabled();
 });
 
 test("PNG timeout and late completion cannot replace a newer preview", async ({ page }) => {
@@ -421,11 +436,15 @@ test("PNG timeout and late completion cannot replace a newer preview", async ({ 
   const input = await enter(page); await input.fill("The first version."); await open(page);
   await expect(preview(page).getByRole("alert")).toContainText("图片准备得有些久", { timeout: 13000 });
   await preview(page).getByRole("button", { name: "返回填写" }).click();
+  await expect(preview(page)).not.toBeVisible();
   await input.fill("The second version."); await page.evaluate(() => { window.encoderStall = false; });
+  await expect(input).toHaveValue("The second version.");
   await open(page); await ready(page); const fresh = await preview(page).locator("img").getAttribute("src");
   await page.evaluate(() => window.lateCallbacks.forEach((callback) => callback()));
   await expect(preview(page).locator("img")).toHaveAttribute("src", fresh);
-  await preview(page).getByRole("button", { name: "返回填写" }).click(); await expect(input).toHaveValue("The second version.");
+  await preview(page).getByRole("button", { name: "返回填写" }).click();
+  await expect(preview(page)).not.toBeVisible();
+  await expect(input).toHaveValue("The second version.");
 });
 
 test("download denial retains the image and never claims the file reached the album", async ({ page }) => {

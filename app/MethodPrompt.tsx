@@ -10,6 +10,24 @@ type CopyStatus = "idle" | "copying" | "success" | "error";
 type ActionLocation = "top" | Panel;
 type SaveResult = { status: "requested" | "error"; location: ActionLocation; filename: string; attempt: number };
 
+const guideDestinations: Record<string, { language: PromptLanguage; panel: Panel }> = {
+  "collaboration-startup-prompt-v1.2.4_20261006.md": { language: "zh", panel: "prompt" },
+  "collaboration-startup-prompt-v1.2.4-en_20261006.md": { language: "en", panel: "prompt" },
+  "collaboration-startup-prompt-v1.2.4_20261006-guide.md": { language: "zh", panel: "guide" },
+  "collaboration-startup-prompt-v1.2.4-en_20261006-guide.md": { language: "en", panel: "guide" },
+};
+
+function GuideText({ text, onNavigate }: { text: string; onNavigate?: (language: PromptLanguage, panel: Panel) => void }) {
+  return <>{text.split(/(\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**")) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
+    const destination = link && guideDestinations[link[2]];
+    if (link && destination && onNavigate) return <a key={index} href={`#method-${destination.panel}-panel`}
+      onClick={(event) => { event.preventDefault(); onNavigate(destination.language, destination.panel); }}>{link[1]}</a>;
+    return <Fragment key={index}>{part}</Fragment>;
+  })}</>;
+}
+
 export default function MethodPrompt({ language, onLanguageChange, active }: {
   language: PromptLanguage;
   onLanguageChange: (language: PromptLanguage) => void;
@@ -194,6 +212,12 @@ export default function MethodPrompt({ language, onLanguageChange, active }: {
     focusTrigger(trigger);
   };
 
+  const openGuideDestination = (next: PromptLanguage, target: Panel) => {
+    if (busy.current || languageBusy.current || !active) return;
+    changeLanguage(next);
+    setReadingPanel(target, target);
+  };
+
   const saveMessage = !active || !saveResult ? "" : saveResult.status === "requested"
     ? `已发起${content.name} TXT 下载，请查看浏览器下载记录。`
     : "暂时未能发起下载。可以重试，或复制原文留存。";
@@ -250,7 +274,7 @@ export default function MethodPrompt({ language, onLanguageChange, active }: {
 
   return (
     <SoftResize><aside className={`prompt-tool method-prompt language-${languagePhase}`} aria-labelledby="method-prompt-title">
-      <div className="method-caption"><h4 id="method-prompt-title">协作 Prompt</h4><span>v{PROMPT_VERSION}</span></div>
+      <div className="method-caption"><h4 id="method-prompt-title">协作启动 Prompt</h4><span>v{PROMPT_VERSION}</span></div>
       <div className="method-controls">
         <div ref={languageFocus} className="method-languages" role="group" aria-label="Prompt 语言" tabIndex={-1}>
           {(["zh", "en"] as const).map((item) => <button key={item} className="method-language" type="button"
@@ -280,15 +304,17 @@ export default function MethodPrompt({ language, onLanguageChange, active }: {
             <div className="prompt-drawer-inner">
               <div id="method-guide-panel" role="region" aria-labelledby="method-guide-trigger" className="method-reading">
                 <article className="method-guide" lang={content.lang}>
-                  <h5>{content.guide.title}</h5><p className="method-guide-scope">{content.guide.scope}</p>
+                  <h5>{content.guide.title}</h5><p className="method-guide-scope"><GuideText text={content.guide.scope} onNavigate={openGuideDestination} /></p>
                   <p>{content.guide.intro}</p>
+                  <h6>{content.guide.stepsTitle}</h6>
                   <ol>{content.guide.steps.map((step) => <li key={step.title}><div>
-                    <strong className="method-step-name">{step.title}</strong>
-                    {step.body.split(content.confirmation).map((part, index) => <Fragment key={index}>
-                      {index > 0 && <strong>{content.confirmation}</strong>}{part}
-                    </Fragment>)}
+                    <strong className="method-step-name">{step.title}</strong>{" "}
+                    <GuideText text={step.body} />
                   </div></li>)}</ol>
-                  <p className="method-guide-footer">{content.guide.footer}</p>
+                  <h6>{content.guide.highlightsTitle}</h6>
+                  <ul>{content.guide.highlights.map((point) => <li key={point.title}>
+                    <strong>{point.title}</strong>{" "}<GuideText text={point.body} />
+                  </li>)}</ul>
                 </article>
                 {bottomActions("guide")}
               </div>

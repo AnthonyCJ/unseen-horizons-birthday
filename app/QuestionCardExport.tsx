@@ -5,6 +5,8 @@ import { prepareQuestionCards, renderQuestionPage } from "../lib/question-card.m
 import type { CardPlan } from "../lib/question-card.mjs";
 import { questionFontCoverage } from "../lib/question-fonts.mjs";
 import { motionDelay, SoftReveal, useSoftDismiss } from "./SoftMotion";
+import { KeepsakeImage, KeepsakeSaveHelp } from "./KeepsakeImage";
+import { usePreviewHistory } from "./usePreviewHistory";
 
 type PreviewSession = { controller: AbortController; text: string; plan: CardPlan | null; urls: Map<number, string>; busy: boolean };
 function dispose(session: PreviewSession | null) {
@@ -49,6 +51,7 @@ export default function QuestionCardExport({ text, disabled = false }: { text: s
     trigger.current?.focus({ preventScroll: true });
   };
   const { closing, close } = useSoftDismiss(dialog, finishClose);
+  const previewHistory = usePreviewHistory(close);
 
   const showPage = async (active: PreviewSession, index: number) => {
     if (!active.plan || !current(active) || active.busy) return;
@@ -102,7 +105,10 @@ export default function QuestionCardExport({ text, disabled = false }: { text: s
     setPendingPage(null);
     setCount(0);
     setMode(nextMode);
-    dialog.current?.showModal();
+    if (!dialog.current?.open) {
+      previewHistory.enter();
+      dialog.current?.showModal();
+    }
     try {
       active.plan = await prepareQuestionCards(text, { mode: nextMode, signal: active.controller.signal });
       if (!current(active)) return;
@@ -144,8 +150,8 @@ export default function QuestionCardExport({ text, disabled = false }: { text: s
     anchor.href = url;
     anchor.download = `Charlotte-question-2026${count > 1 ? `-${page + 1}` : ""}${mode === "plain" ? "-text" : ""}.png`;
     document.body.append(anchor);
-    try { anchor.click(); setStatus("已发起图片下载；也可以长按图片，使用浏览器的保存功能。"); }
-    catch { setStatus("下载暂时没有启动。可以长按图片，使用浏览器的保存功能，或先复制文字。"); }
+    try { anchor.click(); setStatus(count > 1 ? `已发起第 ${page + 1} 张保存，共 ${count} 张。请在浏览器下载记录中核对页号。` : "已发起图片下载；也可以长按图片，使用浏览器的保存功能。"); }
+    catch { setStatus(count > 1 ? `第 ${page + 1} 张下载暂时没有启动。请重试这一张，或长按图片使用浏览器的保存功能。` : "下载暂时没有启动。可以长按图片，使用浏览器的保存功能，或先复制文字。"); }
     finally { anchor.remove(); }
   };
   const retry = () => {
@@ -156,48 +162,49 @@ export default function QuestionCardExport({ text, disabled = false }: { text: s
   return (
     <div className="question-export">
       <div className="question-export-actions">
-        <button ref={trigger} type="button" className="question-primary-action" disabled={disabled} aria-haspopup="dialog" aria-describedby="question-export-hint" onClick={() => { if (!dialog.current?.open) void prepare(); }}>
-          <span aria-hidden="true" className="question-card-icon">↗</span>带走这张问题签
+        <button ref={trigger} type="button" className="keepsake-control keepsake-entry" disabled={disabled} aria-haspopup="dialog" aria-describedby="question-export-hint" onClick={() => { if (!dialog.current?.open) void prepare(); }}>
+          带走这张问题签<span aria-hidden="true">→</span>
         </button>
       </div>
       <p id="question-export-hint" className="inspiration-hint">留白也可以。先看看问题签，再决定是否保存。</p>
-      <dialog ref={dialog} className={`question-export-dialog soft-dialog ${closing ? "is-closing" : ""}`} tabIndex={-1}
+      <dialog ref={dialog} className={`question-export-dialog keepsake-dialog keepsake-surface soft-dialog ${closing ? "is-closing" : ""}`} tabIndex={-1}
         aria-labelledby="question-export-title" data-keyboard-nav-block="true"
-        onCancel={(event) => { event.preventDefault(); close(); }} onKeyDown={(event) => event.stopPropagation()}>
-        <header>
-          <button className="finding-reader-back" type="button" onClick={close}><span aria-hidden="true">← </span>返回填写</button>
-          <h3 id="question-export-title">你的问题签{mode === "plain" ? " · 清晰文字版" : ""}</h3>
+        onCancel={(event) => { event.preventDefault(); previewHistory.leave(); }} onKeyDown={(event) => event.stopPropagation()}>
+        <header className="keepsake-header">
+          <h3 id="question-export-title" className="keepsake-title">你的问题签{mode === "plain" && <span className="keepsake-title-detail">清晰文字版</span>}</h3>
+          <button className="keepsake-control keepsake-back" type="button" onClick={previewHistory.leave}><span aria-hidden="true">←</span>返回填写</button>
         </header>
-        <div className="question-export-preview" aria-busy={busy}>
-          {busy && <p className="question-export-working" role="status">{count ? `正在准备第 ${(pendingPage ?? page) + 1} 张……` : "正在把这一刻写进纸签……"}</p>}
-          {error && <div className="question-export-error"><p role="alert">{error}</p><div className="question-export-actions">
-            <button type="button" className="prompt-action" onClick={retry}>重试{count ? "这一张" : "生成"}</button>
-            {mode !== "plain" && <button type="button" className="prompt-action" onClick={() => void prepare("plain")}>先用清晰文字版</button>}
-          </div></div>}
-          {/* Native PNG previews retain long-press saving on touch devices. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          {url && <img key={url} className={busy ? "is-changing" : "is-settled"} src={url} alt={`问题签图片，第 ${page + 1} 页，共 ${count} 页`} width={1200} height={1600} />}
-        </div>
-        <footer>
-          {count > 1 && <div className="question-export-pages">
-            <button type="button" className="prompt-action" disabled={busy || page === 0} onClick={() => { if (session.current) void showPage(session.current, page - 1); }}>上一张</button>
-            <span aria-live="polite">{page + 1} / {count}</span>
-            <button type="button" className="prompt-action" disabled={busy || page === count - 1} onClick={() => { if (session.current) void showPage(session.current, page + 1); }}>下一张</button>
-          </div>}
-          <div className="question-export-actions">
-            <button className="question-primary-action" type="button" disabled={!url || busy || !!error} onClick={download}>{count > 1 ? `保存第 ${page + 1} 张图片` : "保存图片"}</button>
-            {text.length > 0 && <button className="question-copy-button" type="button" data-copied={copyState === "copied"} onClick={() => void copy()}>
-              {copyState === "copied" ? <><span aria-hidden="true">✓ </span>已复制</> : copyState === "pending" ? "正在复制…" : "复制文字"}
-            </button>}
+        <div className="keepsake-body">
+          <div className="question-export-preview" aria-busy={busy}>
+            {busy && <p className="question-export-working" role="status">{count ? `正在准备第 ${(pendingPage ?? page) + 1} 张……` : "正在把这一刻写进纸签……"}</p>}
+            {error && <div className="question-export-error"><p role="alert">{error}</p><div className="question-export-actions">
+              <button type="button" className="keepsake-control" onClick={retry}>重试{count ? "这一张" : "生成"}</button>
+              {mode !== "plain" && <button type="button" className="keepsake-control" onClick={() => void prepare("plain")}>先用清晰文字版</button>}
+            </div></div>}
+            {url && <KeepsakeImage className={busy ? "is-changing" : "is-settled"} src={url} alt={`问题签图片，第 ${page + 1} 页，共 ${count} 页`} width={1200} height={1600} ready={!busy && !error} />}
           </div>
-          {text.length > 0 && <p className="question-copy-feedback" role="status" aria-live="polite" aria-atomic="true">
-            {copyState === "copied" ? "文字已复制，可以粘贴到备忘录。" : copyState === "manual" ? "请在下方选中文字，使用系统的复制操作。" : ""}
-          </p>}
-          <p className="inspiration-hint">{count > 1 ? "文字已完整分页，请逐张查看和保存。" : "可以保存图片，也可以长按图片使用浏览器的保存功能。"}</p>
-          {questionFontCoverage(text).fallback && <p className="inspiration-hint">部分字符使用设备字形；若显示不完整，可复制原文保留。</p>}
-          <p role="status" className="inspiration-status">{status}</p>
-          <SoftReveal show={manualCopy}>{manualCopy && <textarea ref={copyArea} className="question-copy-text" readOnly aria-label="可复制的完整原文" value={text} />}</SoftReveal>
-        </footer>
+          <footer className="keepsake-footer">
+            {count > 1 && <div className="question-export-pages">
+              <button type="button" className="keepsake-control" disabled={busy || page === 0} onClick={() => { if (session.current) void showPage(session.current, page - 1); }}>上一张</button>
+              <span aria-live="polite">第 {page + 1} 张，共 {count} 张</span>
+              <button type="button" className="keepsake-control" disabled={busy || page === count - 1} onClick={() => { if (session.current) void showPage(session.current, page + 1); }}>下一张</button>
+            </div>}
+            <div className="question-export-actions keepsake-save-actions">
+              <button className="keepsake-control keepsake-primary" type="button" disabled={!url || busy || !!error} onClick={download}>{count > 1 ? `保存第 ${page + 1} 张` : "保存图片"}</button>
+              {text.length > 0 && <button className="question-copy-button keepsake-control" type="button" data-copied={copyState === "copied"} onClick={() => void copy()}>
+                {copyState === "copied" ? <><span aria-hidden="true">✓ </span>已复制</> : copyState === "pending" ? "正在复制…" : "复制文字"}
+              </button>}
+            </div>
+            {text.length > 0 && <p className="question-copy-feedback" role="status" aria-live="polite" aria-atomic="true">
+              {copyState === "copied" ? "文字已复制，可以粘贴到备忘录。" : copyState === "manual" ? "请在下方选中文字，使用系统的复制操作。" : ""}
+            </p>}
+            <p className="inspiration-hint">{count > 1 ? "文字已完整分页，请逐张查看和保存。" : "可以保存图片，也可以长按图片使用浏览器的保存功能。"}</p>
+            {questionFontCoverage(text).fallback && <p className="inspiration-hint">部分字符使用设备字形；若显示不完整，可复制原文保留。</p>}
+            <p role="status" className="inspiration-status">{status}</p>
+            <KeepsakeSaveHelp question />
+            <SoftReveal show={manualCopy}>{manualCopy && <textarea ref={copyArea} className="question-copy-text" readOnly aria-label="可复制的完整原文" value={text} />}</SoftReveal>
+          </footer>
+        </div>
       </dialog>
     </div>
   );

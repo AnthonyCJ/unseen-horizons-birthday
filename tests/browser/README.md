@@ -1,11 +1,21 @@
 # Browser compatibility checks
 
 Run `npm run check:release` before delivering a new version. It includes source
-checks, the production build, export/font checks and the entire browser suite.
+checks, the production build, export/font checks and the bounded Chrome/WebKit
+release suite in `playwright.release.config.mjs`.
 `npm run test:compatibility` runs the added compatibility cases against an
 already built `out/`. `npm run test:browser` also includes all existing question
-card and postcard regression cases. The Pages workflow runs that same suite
-before uploading the build. Updating local workflow files does not run CI.
+card and postcard regression cases. The Pages workflow runs `test:release`
+before uploading the checked build. Updating local workflow files does not run CI.
+
+The release gate selects five recorded desktop display settings and three mobile
+portrait/narrow/landscape profiles. It checks the normal five-page journey, reader
+replay, bilingual Prompt payloads and actual TXT downloads, draft recovery,
+bookmark/question/postcard PNG downloads, zoom and return navigation. Chrome uses
+the installed branded browser; WebKit and mobile profiles are simulation coverage.
+Firefox remains available in the separate broader suite. Successful-copy payload
+tests use an isolated Clipboard API fixture, not native OS pasting; denied-copy
+recovery is also checked. Physical Safari/phone behavior remains unverified.
 
 ## Coverage and priority
 
@@ -20,6 +30,15 @@ before uploading the build. Updating local workflow files does not run CI.
 - Reduced-motion layout cases cover the complete navigable content at every
   profile. Fault cases cover storage, clipboard, assets, fonts, downloads and
   stalled/rejected music startup. Existing export cases verify actual PNG bytes.
+- Layout cases also compare displayed copy and semantic line groups against
+  `../approved-copy.mjs`, including overview/reader consistency and letter ARIA
+  text. After fonts have loaded, they detect text extending beyond its box or
+  a clipping ancestor.
+- `copy-rhythm.spec.mjs` samples the real audio clock and character visibility
+  at 1440 × 800, 1920 × 1080 and 390 × 744 with normal motion in each engine.
+  It requires native MP3 playback, retains the existing synchronization offset,
+  and checks phrase appearance/completion within a two-second sampling window.
+  This does not measure sound quality or change the product timing.
 - Keyboard cases check focus containment, return focus, Home and arrow keys;
   wheel input checks long reader text and the bottom of an image preview.
   Delayed-response cases add 200 ms to matched local assets without pretending
@@ -51,3 +70,14 @@ The local default is one worker. Keep it for the Windows WebKit build: running
 multiple headless instances can add substantial startup delays on this host.
 CI keeps its existing two-worker setting on Linux; its actual runtime and result
 must be checked when the workflow is next authorized to run.
+
+## Keepsake integration
+
+`bookmark-integration.spec.mjs` checks the accepted bookmark's actual downloaded
+PNG, the nested reader's scroll/focus restoration, and button/Escape/browser Back
+without changing the entrance fragment. It measures real image enlargement,
+checks retry feedback, and compares first-page iris ink with the question text
+in actual handwritten and plain PNGs. Continuation images must omit the iris.
+The tail still returns to the existing three-item directory; postcard downloads
+must retain the original bytes. Pointer activation is included because WebKit
+does not automatically focus a clicked button.

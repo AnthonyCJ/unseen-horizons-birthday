@@ -5,8 +5,8 @@ import { METHOD_PROMPTS } from "../../lib/clarifying-prompt.mjs";
 import { createPromptDownload } from "../../lib/prompt-download.mjs";
 
 const approved = {
-  zh: { filename: "协作Prompt-中文-v1.2.1.txt", bytes: 4492, sha256: "edaa3a726f29dd336049f4c222b806a760edf1372538a6088f2e0f206f77b315" },
-  en: { filename: "协作Prompt-英文-v1.2.1.txt", bytes: 6556, sha256: "195cdb263fd69f56ecd6a9c377b6bc279d1b63d7c342cea0c4651dd3a2668068" },
+  zh: { filename: "协作启动Prompt-中文-v1.2.4.txt", bytes: 5577, sha256: "c5158f490a8052c6dfe832872f7597c261ef22689eda76909ebd1e93f67c5d26" },
+  en: { filename: "协作启动Prompt-英文-v1.2.4.txt", bytes: 8284, sha256: "a176a935d396de692f83f76033ad912fe958e8490175b180de9d1011e73b7e14" },
 };
 
 for (const language of ["zh", "en"]) {

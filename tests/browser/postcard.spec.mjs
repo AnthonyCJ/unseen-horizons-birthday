@@ -46,7 +46,7 @@ test("the unified handwriting postcard previews and downloads the same complete 
   expectCompactSmile(image, render.geometry.smile);
   await expect(dialog).toContainText("已发起保存");
   await dialog.screenshot({ path: info.outputPath("postcard-preview.png") });
-  await dialog.getByRole("button", { name: "关闭预览", exact: true }).click();
+  await dialog.getByRole("button", { name: "返回祝福", exact: true }).click();
   await expect(page.getByRole("button", { name: "保存这份祝福", exact: true })).toBeFocused();
 
   // Render the source independently so a font change cannot be hidden by the

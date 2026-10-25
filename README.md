@@ -12,6 +12,15 @@ npm run preview
 
 The deployed site uses a client-side fragment gate to discourage casual access. It is not authentication, and the full access URL is intentionally not stored in this repository.
 
+All local acceptance URLs for this project must serve the same current `out/`
+directory in the live project. Build and verify the latest working tree before
+acceptance; an isolated build is not delivered until its verified output is
+promoted to that directory. Other local preview ports must reference that same
+output instead of serving historical copies. Verify the files returned by every
+running project preview, including the user's normal port, against the promoted
+build. Existing tabs need a user-initiated reload to load a new build; do not clear
+drafts or reload the user's tabs as part of a content update.
+
 ## Temporary drafts and image export
 
 Editable card text stays in the current tab's `sessionStorage`; it is never sent
@@ -67,9 +76,8 @@ coverage or deployment status. Check the actual release run before describing a
 version as published.
 
 ```text
-npx playwright install chromium webkit firefox
-npm test
-npm run test:browser:quick
+# Use the installed Google Chrome for the release checks.
+npx playwright install webkit
 npm run check:release
 ```
 
@@ -79,6 +87,13 @@ the full suite uses Chromium, WebKit and Firefox. It tests real PNG downloads,
 font and encoder failures, timeouts, cancellation, and narrow/short viewports.
 Synthetic inputs and test entrances are used exclusively. Reports and downloaded
 samples stay in ignored `test-results/` and `playwright-report/`, outside `out/`.
-The Pages workflow runs these gates before uploading the same checked output.
+The Pages workflow and `check:release` use the bounded Chrome/WebKit suite in
+`playwright.release.config.mjs`: recorded desktop/mobile sizes, the five-page
+journey, reader replay, bilingual Prompt, draft recovery and keepsake downloads,
+zoom and returns. Run it with `npm run test:release` after building `out/`.
+Only the checked output is uploaded. The broader suite remains separately
+available; Firefox is not part of this release gate. Chrome is the actual branded
+browser; WebKit results do not certify the Safari application. Clipboard payload
+and fallback checks do not establish native operating-system pasting.
 Actual iPhone/Android keyboards and operating-system saving still need physical
 device checks; viewport emulation does not establish that coverage.

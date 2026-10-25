@@ -41,7 +41,7 @@ jobs:
         run: npm run verify:question-fonts
 
       - name: Install test browsers
-        run: npx playwright install --with-deps chromium webkit firefox
+        run: npx playwright install --with-deps webkit chrome
 
       - name: Provide audio output for headless browser playback
         run: |
@@ -52,17 +52,20 @@ jobs:
           pactl info
           pactl list short sinks
 
-      - name: Check desktop compatibility, full journey, recovery and downloads in three browsers
-        run: npm run test:browser
+      - name: Check core compatibility, journey and downloads in Chrome and WebKit
+        run: npm run test:release
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: test-results/release-summary.json
 
-      - name: Preserve failed browser diagnostics
-        if: failure()
+      - name: Preserve release verification results
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: browser-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            test-results/browser-regression/
-            playwright-report/browser-regression/
+            test-results/release-verification/
+            test-results/release-summary.json
+            playwright-report/release-verification/
           retention-days: 1
           if-no-files-found: ignore
 

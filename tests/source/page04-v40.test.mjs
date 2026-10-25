@@ -7,10 +7,10 @@ import test from "node:test";
 const experiencePath = new URL("../../app/BirthdayExperience.tsx", import.meta.url);
 const stylesPath = new URL("../../app/globals.css", import.meta.url);
 
-// Full v1.2.1 template body, excluding the source document heading and code fence.
-const expectedPromptHash = "edaa3a726f29dd336049f4c222b806a760edf1372538a6088f2e0f206f77b315";
+// Full v1.2.4 code-block body, excluding source-document metadata and outer fences.
+const expectedPromptHash = "c5158f490a8052c6dfe832872f7597c261ef22689eda76909ebd1e93f67c5d26";
 
-test("implements the approved page 04 revision and full v1.2.1 Prompt without changing page 02", async () => {
+test("implements the approved page 04 revision and full v1.2.4 Prompt without changing page 02", async () => {
   const source = await readFile(experiencePath, "utf8");
   const copySource = source.replace(/<[^>]*>/g, "");
 
@@ -22,15 +22,15 @@ test("implements the approved page 04 revision and full v1.2.1 Prompt without ch
     "给尚未成形的想法，一个更清楚的开端。",
     "把注意力，留给热爱的事",
     "带一个问题去远方",
-    "有些问题，会让未来多一点值得期待的事。",
+    "有些问题，会让往后的日子多一份期待。",
     "新的一岁里，有没有一个问题，你愿意带着它继续往前走？",
     "不必现在回答。让它陪你走一段路，",
     "也许沿途的经历，会带来新的线索。",
-    "愿初生的灵感，",
-    "在想象里舒展翅膀；",
-    "从一个念头出发，",
+    "望初生的灵感，",
+    "在交互中逐渐明朗；",
+    "舒展想象的翅膀，",
     "飞向未曾设想的远方。",
-    "愿求索有回响，",
+    "求索有回响，",
     "停歇有晴朗；",
     "愿那些值得长久追问的问题，",
     "总能遇见你清醒、从容的目光。",
@@ -62,7 +62,7 @@ test("uses the approved overview and focus-reader interaction without adding com
     "inert={activeFinding !== null}",
     "findingReaderScrollRef",
     "if (event.key === \"Escape\")",
-    "findingButtonRefs.current[triggerIndex]?.focus({ preventScroll: true })",
+    "findingButtonRefs.current[index]?.focus({ preventScroll: true })",
     "findingReaderCloseTimer.current = window.setTimeout(finishClosing, FINDING_READER_CLOSE_MS);",
     "body.style.position = \"fixed\"",
     "data-keyboard-nav-block",
@@ -89,21 +89,47 @@ test("uses the approved overview and focus-reader interaction without adding com
   assert.doesNotMatch(source, /上一条|下一条|阅读进度|已读|顺序解锁/);
 });
 
-test("pairs the full bilingual templates with their language-specific five-step guides", () => {
-  assert.equal(PROMPT_VERSION, "1.2.1");
+test("pairs the full bilingual templates with their complete v1.2.4 guides", () => {
+  assert.equal(PROMPT_VERSION, "1.2.4");
   assert.equal(METHOD_PROMPTS.zh.prompt, CLARIFYING_PROMPT);
-  assert.equal(createHash("sha256").update(METHOD_PROMPTS.en.prompt).digest("hex"), "195cdb263fd69f56ecd6a9c377b6bc279d1b63d7c342cea0c4651dd3a2668068");
-  assert.ok(METHOD_PROMPTS.en.prompt.endsWith("[Describe your request here. You may include any available background, materials, constraints, and preferences; you do not need to fill out the entire brief in advance.]"));
+  assert.equal(createHash("sha256").update(METHOD_PROMPTS.en.prompt).digest("hex"), "a176a935d396de692f83f76033ad912fe958e8490175b180de9d1011e73b7e14");
+  assert.ok(METHOD_PROMPTS.en.prompt.endsWith("[Describe your request here. You may include available background, materials, constraints, and preferences; you do not need to fill out the entire brief in advance.]"));
   for (const language of ["zh", "en"]) {
     const content = METHOD_PROMPTS[language];
     assert.equal(content.guide.steps.length, 5);
+    assert.equal(content.guide.highlights.length, 4);
     assert.ok(content.guide.steps[2].body.includes(content.confirmation));
     assert.ok(content.prompt.includes(content.confirmation));
     assert.doesNotMatch(content.prompt, /^```|\n```/);
-    assert.ok(content.guide.scope.includes(PROMPT_VERSION));
+    assert.ok(content.guide.title.includes(PROMPT_VERSION));
   }
-  assert.doesNotMatch(JSON.stringify(METHOD_PROMPTS.zh.guide), /Confirmed\. Please proceed\./);
-  assert.doesNotMatch(JSON.stringify(METHOD_PROMPTS.en.guide), /确认开始/);
+  assert.equal(METHOD_PROMPTS.zh.confirmation, "确认开始");
+  assert.equal(METHOD_PROMPTS.en.confirmation, "Approved. Please proceed.");
+  assert.doesNotMatch(METHOD_PROMPTS.en.prompt, /Confirmed\. Please proceed\./);
+  for (const { guide } of Object.values(METHOD_PROMPTS)) {
+    assert.ok(guide.scope.includes("2026-10-06"));
+    assert.ok(guide.scope.includes("2026-10-24"));
+  }
+});
+
+test("preserves the supplied guides except the user-approved maintenance-section omission", () => {
+  // Source-guide digests after omitting only the approved final maintenance section and Markdown structure.
+  const sourceDigests = {
+    zh: "d8c8afa9eb969b2b409efb33a656c96fa93e7b971f3cfa758ff6472f4badca1a",
+    en: "b352aa133793213bc4f1e74910f8dc3319143e8df9c74d408e61bfce477f5430",
+  };
+  for (const language of ["zh", "en"]) {
+    const { guide } = METHOD_PROMPTS[language];
+    const paragraphs = [guide.title, guide.scope, guide.intro, guide.stepsTitle,
+      ...guide.steps.map(({ title, body }) => `${title} ${body}`),
+      guide.highlightsTitle,
+      ...guide.highlights.map(({ title, body }) => `${title} ${body}`)];
+    const canonical = paragraphs.join("\n").replaceAll("**", "").replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+    assert.equal(createHash("sha256").update(canonical).digest("hex"), sourceDigests[language]);
+    assert.doesNotMatch(JSON.stringify(guide), /[A-Z]:[\\/]/);
+    assert.equal(guide.navigation, undefined, "The supplied guide must not include added navigation prose");
+    assert.equal([...guide.scope.matchAll(/\]\([^)]*\.md\)/g)].length, 2, "Retain both original links for in-page mapping");
+  }
 });
 
 test("uses a full-width overview and one reduced-motion-safe reader scroll context", async () => {
@@ -156,7 +182,8 @@ test("keeps the focus reader mounted through its softened closing state", async 
   const closeBlock = source.match(
     /const closeFindingReader = useCallback\(\(restoreFocus = true\) => \{([\s\S]*?)\n  \}, \[activeFinding/,
   )?.[1] ?? "";
-  assert.match(closeBlock, /const finishClosing = \(\) => \{[\s\S]*?setActiveFinding\(null\);[\s\S]*?requestAnimationFrame/);
+  assert.match(closeBlock, /findingFocusRestore\.current = restoreFocus \? triggerIndex : null;[\s\S]*?setActiveFinding\(null\);/);
+  assert.match(source, /useEffect\(\(\) => \{\s*if \(isFindingReaderOpen \|\| findingFocusRestore\.current === null\) return;[\s\S]*?findingButtonRefs\.current\[index\]\?\.focus\(\{ preventScroll: true \}\)[\s\S]*?\}, \[isFindingReaderOpen\]\);/);
   assert.match(closeBlock, /if \(reducedMotion\) \{\s*finishClosing\(\);\s*return;\s*\}/);
   assert.match(closeBlock, /setFindingReaderClosing\(true\);[\s\S]*?window\.setTimeout\(finishClosing, FINDING_READER_CLOSE_MS\)/);
 

@@ -15,7 +15,9 @@ export const METHOD_PROMPTS: Readonly<Record<PromptLanguage, {
     title: string;
     scope: string;
     intro: string;
+    stepsTitle: string;
     steps: ReadonlyArray<{ title: string; body: string }>;
-    footer: string;
+    highlightsTitle: string;
+    highlights: ReadonlyArray<{ title: string; body: string }>;
   };
 }>>;
