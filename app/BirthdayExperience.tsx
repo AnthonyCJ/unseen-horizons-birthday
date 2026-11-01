@@ -75,8 +75,11 @@ const FINDING_QUESTION_SEGMENTS = [
 ] as const;
 const FINDING_QUESTION_BASE_DELAY_MS = 2500;
 const FINDING_QUESTION_STEP_MS = 175;
-const FINDING_QUESTION_AFTER_DELAY_MS = 8300;
-const FINDING_QUESTION_CLOSING_DELAY_MS = 10200;
+const FINDING_QUESTION_SENTENCE_PAUSE_MS = 1000;
+// Each sentence rests after its last character is fully clear, including the fade tail.
+const FINDING_QUESTION_SEGMENT_OFFSET_MS = CHARACTER_FADE_MS + FINDING_QUESTION_SENTENCE_PAUSE_MS - FINDING_QUESTION_STEP_MS;
+const FINDING_QUESTION_AFTER_DELAY_MS = 8300 + 2 * FINDING_QUESTION_SEGMENT_OFFSET_MS;
+const FINDING_QUESTION_CLOSING_DELAY_MS = 10200 + 2 * FINDING_QUESTION_SEGMENT_OFFSET_MS;
 
 type Phase = "idle" | "exiting" | "paper" | "entering" | "ritual";
 type TransitionProfile = "standard" | "artwork";
@@ -158,7 +161,7 @@ function FindingQuestionReveal() {
                 data-character-index={currentIndex}
                 key={`${segmentIndex}-${currentIndex}`}
                 style={{
-                  "--question-char-delay": `${FINDING_QUESTION_BASE_DELAY_MS + currentIndex * FINDING_QUESTION_STEP_MS}ms`,
+                  "--question-char-delay": `${FINDING_QUESTION_BASE_DELAY_MS + currentIndex * FINDING_QUESTION_STEP_MS + segmentIndex * FINDING_QUESTION_SEGMENT_OFFSET_MS}ms`,
                 } as CSSProperties}
               >
                 {character}
@@ -1094,17 +1097,18 @@ export default function BirthdayExperience() {
     if (index === 0) {
       return (
         <FindingContentReveal key={index} className="finding-detail finding-detail-method" ready={findingReaderVisible || findingReaderClosing}>
-          <p data-finding-reveal="2500">
+          {/* Start 1s earlier after feedback; allow the 840ms arrival plus 4s for the heading. */}
+          <p data-finding-reveal="5000">
             这段 Prompt 用来请 AI 先理解你想做的事，把背景、期待与边界整理成一份简报，等你确认后再着手推进。
           </p>
-          <p data-finding-reveal="4700">
+          {/* Each complete prose paragraph has 4s of clear reading time; fades stay at 1.5s. */}
+          <p data-finding-reveal="10500">
             念头不必一开始就很完整。研究里的疑问、生活中的计划，或一次突如其来的灵感，都可以成为对话的开端。
           </p>
           <p className="finding-poem">
-            <span data-finding-reveal="8000" data-finding-duration="2000">望初生的灵感，</span>
-            <span data-finding-reveal="11400" data-finding-duration="2000">在交互中逐渐明朗；</span>
-            <span data-finding-reveal="14800" data-finding-duration="2000">舒展想象的翅膀，</span>
-            <span data-finding-reveal="18200" data-finding-duration="2000">飞向未曾设想的远方。</span>
+            {/* Two-line closing keeps the accepted fade and pause, after the same reading breath. */}
+            <span data-finding-reveal="17800" data-finding-duration="2000">让灵感在理解中舒展，</span>
+            <span data-finding-reveal="21200" data-finding-duration="2000">让方向在取舍间渐明。</span>
           </p>
           <MethodPrompt language={promptLanguage} onLanguageChange={setPromptLanguage} active={!findingReaderClosing && readerSwap !== "out"} />
         </FindingContentReveal>
@@ -1114,22 +1118,24 @@ export default function BirthdayExperience() {
     if (index === 1) {
       return (
         <FindingContentReveal key={index} className="finding-detail finding-detail-harness" ready={findingReaderVisible || findingReaderClosing}>
-          <p data-finding-reveal="2500">
+          {/* Heading gets 4s after arrival; clear prose holds are 3s, 8s and 3s after feedback. */}
+          <p data-finding-reveal="5000">
             有些想法，需要一段安静的时间，才会慢慢显出轮廓。
           </p>
-          <section className="finding-harness-concept" aria-labelledby="finding-harness-word" data-finding-reveal="4000">
+          <section className="finding-harness-concept" aria-labelledby="finding-harness-word" data-finding-reveal="9500">
             <h3 id="finding-harness-word" className="finding-harness-word" lang="en">Harness Self</h3>
             <p className="finding-harness-anchor"><span>让注意力的去向，</span><span>更多由自己决定。</span></p>
             <p className="finding-harness-meaning">在这页手记里，我想分享的是：把心思留给在意的事，也让暂时不急的声音等一等。</p>
           </section>
-          <p className="finding-harness-rhythm" data-finding-reveal="5800">
+          <p className="finding-harness-rhythm" data-finding-reveal="19000">
             <span>可以尽兴地投入，</span><span>也可以安心地停歇。</span>
           </p>
           <p className="finding-poem finding-harness-closing">
-            <span data-finding-reveal="9200" data-finding-duration="2000">求索有回响，</span>
-            <span data-finding-reveal="12600" data-finding-duration="2000">停歇有晴朗；</span>
-            <span data-finding-reveal="16000" data-finding-duration="2000">愿那些值得长久追问的问题，</span>
-            <span data-finding-reveal="20200" data-finding-duration="2000"><span className="finding-harness-phrase">总能遇见你</span><span className="finding-harness-phrase">清醒、从容的目光。</span></span>
+            {/* The accepted verse is shifted intact, with a 1.9s breath after reading. */}
+            <span data-finding-reveal="25400" data-finding-duration="2000">求索有回响，</span>
+            <span data-finding-reveal="28800" data-finding-duration="2000">停歇有晴朗；</span>
+            <span data-finding-reveal="32200" data-finding-duration="2000">愿那些值得长久追问的问题，</span>
+            <span data-finding-reveal="36400" data-finding-duration="2000"><span className="finding-harness-phrase">总能遇见你</span><span className="finding-harness-phrase">清醒、从容的目光。</span></span>
           </p>
           <div className="bookmark-entry">
             {/* The thumbnail and download share the accepted, unmodified artwork. */}

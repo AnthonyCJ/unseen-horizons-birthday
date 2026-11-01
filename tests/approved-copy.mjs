@@ -1,9 +1,9 @@
-// Human-approved 0.4.5 copy. This is a review fixture, not product runtime data.
+// Human-approved copy, including the CLOSING-01 option A selection. Review fixture only.
 export const APPROVED_COPY = {
   cover: "今天，想与你分享一份小小的生日手记。",
   letterLead: "愿新的一岁里，你依然拥有追问世界的好奇，也常有抬头看风景的轻松。",
   letterClosing: "祝研究顺利，生活明亮；愿细碎的欢喜，落满日常。",
-  methodPoem: ["望初生的灵感，", "在交互中逐渐明朗；", "舒展想象的翅膀，", "飞向未曾设想的远方。"],
+  methodPoem: ["让灵感在理解中舒展，", "让方向在取舍间渐明。"],
   attentionIntro: "有些想法，需要一段安静的时间，才会慢慢显出轮廓。",
   attentionAnchor: ["让注意力的去向，", "更多由自己决定。"],
   attentionMeaning: "在这页手记里，我想分享的是：把心思留给在意的事，也让暂时不急的声音等一等。",

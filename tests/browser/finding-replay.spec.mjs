@@ -20,7 +20,7 @@ async function opacities(page) {
     .map(n => Number(getComputedStyle(n).opacity)));
 }
 async function complete(page) {
-  await expect.poll(async () => (await opacities(page)).every(n => n > .999), { timeout: 28000 }).toBe(true);
+  await expect.poll(async () => (await opacities(page)).every(n => n > .999), { timeout: 50000 }).toBe(true);
 }
 async function close(page) {
   await page.locator(".finding-reader-back").click();
@@ -40,7 +40,7 @@ async function sameClock(page, start) {
 }
 
 test("finding complete sequences replay on first entry, rereading and next-item navigation", async ({ page }, info) => {
-  test.setTimeout(210000);
+  test.setTimeout(300000);
   await page.setViewportSize({ width: 1440, height: 800 });
   await page.addInitScript(() => {
     window.__motionFocusEvents = [];
@@ -75,7 +75,7 @@ test("finding complete sequences replay on first entry, rereading and next-item 
 });
 
 test("finding interrupted entry restarts cleanly without retaining visible fragments", async ({ page }) => {
-  test.setTimeout(140000);
+  test.setTimeout(180000);
   await overview(page, 7);
   for (const number of [1, 2, 3]) {
     await openFinding(page, number);
@@ -122,7 +122,7 @@ test("finding ordinary actions and bookmark return preserve the current reading 
   await opener.click();
   await expect(page.locator(".bookmark-preview .keepsake-primary")).toBeEnabled();
   // Let the actual reading clock finish while its DOM is display:none.
-  await expect.poll(() => root(page).getAttribute("data-reveal-state"), { timeout: 28000 }).toBe("complete");
+  await expect.poll(() => root(page).getAttribute("data-reveal-state"), { timeout: 50000 }).toBe("complete");
   await page.goBack();
   await expect(page.locator(".bookmark-preview")).toHaveCount(0);
   await expect(opener).toBeFocused();
@@ -167,4 +167,77 @@ test("finding reduced motion is immediately readable and preference changes do n
   await complete(page);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   expect((await opacities(page)).every(n => n === 1)).toBe(true);
+});
+
+test("finding prose preserves clear reading budgets and the accepted verse intervals", async ({ page }) => {
+  await overview(page);
+  for (const [number, holds, verseOffsets] of [
+    [1, [4000, 5800], [0, 3400]],
+    [2, [3000, 8000, 4900], [0, 3400, 6800, 11000]],
+  ]) {
+    await openFinding(page, number);
+    const timings = await root(page).locator("[data-finding-reveal]").evaluateAll(nodes => nodes.map(node => {
+      const { delay, duration } = node.getAnimations()[0].effect.getTiming();
+      return { delay, duration };
+    }));
+    // The first 840ms belong to the reader's arrival, not its heading's reading time.
+    expect(timings[0].delay).toBe(5000);
+    expect(timings[0].delay - 840).toBeGreaterThanOrEqual(4000);
+    for (let i = 0; i < holds.length; i++) {
+      expect(timings[i + 1].delay - timings[i].delay - timings[i].duration).toBe(holds[i]);
+    }
+    const verse = timings.slice(-verseOffsets.length);
+    expect(verse.map(t => t.duration)).toEqual(verseOffsets.map(() => 2000));
+    // Web Animations may expose sub-microsecond floating-point residue.
+    verse.forEach((t, i) => expect(t.delay - verse[0].delay).toBeCloseTo(verseOffsets[i], 5));
+    // Sample the middle of each stable reading hold: complete prose, next block still hidden.
+    for (let i = 0; i < holds.length; i++) {
+      const at = timings[i].delay + timings[i].duration + holds[i] / 2;
+      const visible = await root(page).evaluate((el, at) => {
+        const nodes = [...el.querySelectorAll("[data-finding-reveal]")];
+        for (const node of nodes) for (const animation of node.getAnimations()) {
+          animation.pause(); animation.currentTime = at;
+        }
+        return nodes.map(node => Number(getComputedStyle(node).opacity));
+      }, at);
+      expect(visible[i]).toBe(1);
+      expect(visible[i + 1]).toBe(0);
+    }
+    await close(page);
+  }
+});
+
+test("finding question rests a full second after each sentence is completely clear", async ({ page }) => {
+  await overview(page);
+  await openFinding(page, 3);
+  const result = await root(page).evaluate(el => {
+    const timing = node => {
+      const { delay, duration } = node.getAnimations()[0].effect.getTiming();
+      return { delay, duration };
+    };
+    const segments = [...el.querySelectorAll(".finding-question-segment")].map(segment =>
+      [...segment.children].map(timing));
+    const lines = [...el.querySelectorAll(".finding-question-line")].map(timing);
+    return { segments, lines };
+  });
+  for (let i = 0; i < 2; i++) {
+    const previous = result.segments[i].at(-1), next = result.segments[i + 1][0];
+    expect(next.delay - previous.delay - previous.duration).toBe(1000);
+    const at = previous.delay + previous.duration + 500;
+    const visible = await root(page).evaluate((el, at) => {
+      for (const node of el.querySelectorAll(".finding-question-character,.finding-question-line")) {
+        for (const animation of node.getAnimations()) { animation.pause(); animation.currentTime = at; }
+      }
+      return [...el.querySelectorAll(".finding-question-segment")].map(segment =>
+        [...segment.children].map(n => Number(getComputedStyle(n).opacity)));
+    }, at);
+    expect(visible[i].every(n => n === 1)).toBe(true);
+    expect(visible[i + 1].every(n => n === 0)).toBe(true);
+  }
+  for (const segment of result.segments) for (let i = 1; i < segment.length; i++) {
+    expect(segment[i].delay - segment[i - 1].delay).toBe(175);
+  }
+  const last = result.segments.at(-1).at(-1);
+  expect(result.lines[0].delay - last.delay - last.duration).toBe(325);
+  expect(result.lines[1].delay - result.lines[0].delay).toBe(1900);
 });
