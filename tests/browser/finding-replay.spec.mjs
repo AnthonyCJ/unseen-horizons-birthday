@@ -39,19 +39,49 @@ async function sameClock(page, start) {
     start: window.__findingClock.animation.startTime }))).toEqual({ connected: true, start });
 }
 
+async function recordedStart(page, count, groups, delay) {
+  await expect.poll(() => page.evaluate(() => window.__findingReplayStarts.length)).toBe(count);
+  const start = await page.evaluate(() => window.__findingReplayStarts.at(-1));
+  expect(start.opacities).toHaveLength(groups);
+  expect(start.opacities.at(-1)).toBeLessThan(.05);
+  start.timings.forEach((timing, index) => {
+    expect(timing.delay).toBeCloseTo(delay + index * 300, 5);
+    expect(timing.duration).toBe(1350);
+  });
+}
+
 test("finding complete sequences replay on first entry, rereading and next-item navigation", async ({ page }, info) => {
   test.setTimeout(300000);
   await page.setViewportSize({ width: 1440, height: 800 });
   await page.addInitScript(() => {
     window.__motionFocusEvents = [];
     document.addEventListener("focusin", event => window.__motionFocusEvents.push({ time: performance.now(), id: event.target.id, tag: event.target.tagName }));
+    // Record initial rendering in the page. Driver polling may resume after the fade has advanced.
+    window.__findingReplayStarts = [];
+    const observed = new WeakSet();
+    new MutationObserver(() => {
+      for (const detail of document.querySelectorAll('.finding-detail[data-reveal-state="playing"]')) {
+        if (observed.has(detail)) continue;
+        const nodes = [...detail.querySelectorAll("[data-finding-reveal]")];
+        const animations = nodes.map(node => node.getAnimations()[0]);
+        if (!nodes.length || animations.some(animation => !animation)) continue;
+        observed.add(detail);
+        window.__findingReplayStarts.push({
+          opacities: nodes.map(node => Number(getComputedStyle(node).opacity)),
+          timings: animations.map(animation => {
+            const { delay, duration } = animation.effect.getTiming();
+            return { delay, duration };
+          }),
+        });
+      }
+    }).observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-reveal-state"] });
   });
   const errors = observeErrors(page);
   await overview(page);
   for (let number = 1; number <= 3; number++) {
     if (number === 1) await openFinding(page, number);
     else await nextFinding(page);
-    expect((await opacities(page)).at(-1)).toBeLessThan(.05);
+    await recordedStart(page, number * 2 - 1, [4, 7, 3][number - 1], number === 1 ? 900 : 520);
     await expect.poll(async () => (await opacities(page)).some(n => n > .05 && n < .95)).toBe(true);
     await complete(page);
     const firstCopy = await root(page).innerText();
@@ -66,7 +96,7 @@ test("finding complete sequences replay on first entry, rereading and next-item 
       throw error;
     }
     await openFinding(page, number);
-    expect((await opacities(page)).at(-1)).toBeLessThan(.05);
+    await recordedStart(page, number * 2, [4, 7, 3][number - 1], 900);
     await complete(page);
     expect(await root(page).innerText()).toBe(firstCopy);
     await assertLayout(page, info, `complete-${number}`);
