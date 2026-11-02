@@ -16,11 +16,11 @@ async function overview(page, opened = 0) {
 }
 const root = page => page.locator(".finding-detail");
 async function opacities(page) {
-  return root(page).evaluate(el => [...el.querySelectorAll("[data-finding-reveal],.finding-question-character,.finding-question-line")]
+  return root(page).evaluate(el => [...el.querySelectorAll("[data-finding-reveal]")]
     .map(n => Number(getComputedStyle(n).opacity)));
 }
 async function complete(page) {
-  await expect.poll(async () => (await opacities(page)).every(n => n > .999), { timeout: 50000 }).toBe(true);
+  await expect.poll(async () => (await opacities(page)).every(n => n > .999), { timeout: 8000 }).toBe(true);
 }
 async function close(page) {
   await page.locator(".finding-reader-back").click();
@@ -28,7 +28,7 @@ async function close(page) {
 }
 async function rememberClock(page) {
   await root(page).evaluate(el => {
-    const target = el.querySelector("[data-finding-reveal],.finding-question-character");
+    const target = el.querySelector("[data-finding-reveal]");
     window.__findingClock = { element: target, animation: target.getAnimations()[0] };
   });
   await expect.poll(() => page.evaluate(() => window.__findingClock.animation?.startTime)).not.toBeNull();
@@ -79,7 +79,7 @@ test("finding interrupted entry restarts cleanly without retaining visible fragm
   await overview(page, 7);
   for (const number of [1, 2, 3]) {
     await openFinding(page, number);
-    await expect.poll(async () => (await opacities(page)).some(n => n > .1)).toBe(true);
+    await expect.poll(async () => (await opacities(page)).some(n => n > .1), { intervals: [50] }).toBe(true);
     expect((await opacities(page)).at(-1)).toBeLessThan(.05);
     await close(page);
     await openFinding(page, number);
@@ -169,75 +169,70 @@ test("finding reduced motion is immediately readable and preference changes do n
   expect((await opacities(page)).every(n => n === 1)).toBe(true);
 });
 
-test("finding prose preserves clear reading budgets and the accepted verse intervals", async ({ page }) => {
+test("finding all three bodies share the accepted continuous reveal timing and fixed layout", async ({ page }) => {
   await overview(page);
-  for (const [number, holds, verseOffsets] of [
-    [1, [4000, 5800], [0, 3400]],
-    [2, [3000, 8000, 4900], [0, 3400, 6800, 11000]],
-  ]) {
+  for (const [number, groups, end] of [[1, 4, 3150], [2, 7, 4050], [3, 3, 2850]]) {
     await openFinding(page, number);
+    await expect(root(page).locator("[data-finding-reveal]")).toHaveCount(groups);
     const timings = await root(page).locator("[data-finding-reveal]").evaluateAll(nodes => nodes.map(node => {
-      const { delay, duration } = node.getAnimations()[0].effect.getTiming();
-      return { delay, duration };
+      const { delay, duration, easing } = node.getAnimations()[0].effect.getTiming();
+      return { delay, duration, easing, height: node.getBoundingClientRect().height };
     }));
-    // The first 840ms belong to the reader's arrival, not its heading's reading time.
-    expect(timings[0].delay).toBe(5000);
-    expect(timings[0].delay - 840).toBeGreaterThanOrEqual(4000);
-    for (let i = 0; i < holds.length; i++) {
-      expect(timings[i + 1].delay - timings[i].delay - timings[i].duration).toBe(holds[i]);
-    }
-    const verse = timings.slice(-verseOffsets.length);
-    expect(verse.map(t => t.duration)).toEqual(verseOffsets.map(() => 2000));
-    // Web Animations may expose sub-microsecond floating-point residue.
-    verse.forEach((t, i) => expect(t.delay - verse[0].delay).toBeCloseTo(verseOffsets[i], 5));
-    // Sample the middle of each stable reading hold: complete prose, next block still hidden.
-    for (let i = 0; i < holds.length; i++) {
-      const at = timings[i].delay + timings[i].duration + holds[i] / 2;
-      const visible = await root(page).evaluate((el, at) => {
+    timings.forEach((timing, index) => {
+      expect(timing.delay).toBeCloseTo(900 + index * 300, 5);
+      expect(timing.duration).toBe(1350);
+      // WebKit serializes this standard curve as its equivalent CSS keyword.
+      expect(["cubic-bezier(0.42, 0, 0.58, 1)", "ease-in-out"]).toContain(timing.easing);
+    });
+    expect(timings.at(-1).delay + timings.at(-1).duration).toBeCloseTo(end, 5);
+    // At the first block's midpoint the next blocks are already fading in.
+    for (const at of [1575, end]) {
+      const sample = await root(page).evaluate((el, at) => {
         const nodes = [...el.querySelectorAll("[data-finding-reveal]")];
         for (const node of nodes) for (const animation of node.getAnimations()) {
           animation.pause(); animation.currentTime = at;
         }
-        return nodes.map(node => Number(getComputedStyle(node).opacity));
+        return nodes.map(node => ({ opacity: Number(getComputedStyle(node).opacity), height: node.getBoundingClientRect().height }));
       }, at);
-      expect(visible[i]).toBe(1);
-      expect(visible[i + 1]).toBe(0);
+      sample.forEach((item, index) => expect(item.height).toBeCloseTo(timings[index].height, 2));
+      if (at === end) expect(sample.every(item => item.opacity > .999)).toBe(true);
+      else {
+        expect(sample[0].opacity).toBeCloseTo(.5, 3);
+        expect(sample[1].opacity).toBeGreaterThan(0);
+        expect(sample[1].opacity).toBeLessThan(sample[0].opacity);
+        expect(sample[2].opacity).toBeGreaterThan(0);
+      }
+    }
+    if (number === 3) {
+      await expect(root(page).locator(".finding-question")).toHaveText("新的一岁里，有没有一个问题，你愿意带着它继续往前走？");
+      await expect(root(page).locator(".finding-question-character")).toHaveCount(0);
     }
     await close(page);
   }
 });
 
-test("finding question rests a full second after each sentence is completely clear", async ({ page }) => {
+test("finding next-item entry follows its shorter transition without restarting the reveal clock", async ({ page }) => {
   await overview(page);
-  await openFinding(page, 3);
-  const result = await root(page).evaluate(el => {
-    const timing = node => {
+  await openFinding(page, 1);
+  for (const [kind, groups] of [["attention", 7], ["question", 3]]) {
+    await page.locator(".finding-reader-next button").click();
+    await expect(page.locator(".finding-reader")).toHaveAttribute("data-kind", kind);
+    await expect(page.locator(".finding-reader-layer")).toHaveAttribute("data-swap", "in");
+    const clock = await rememberClock(page);
+    const timings = await root(page).locator("[data-finding-reveal]").evaluateAll(nodes => nodes.map(node => {
       const { delay, duration } = node.getAnimations()[0].effect.getTiming();
       return { delay, duration };
-    };
-    const segments = [...el.querySelectorAll(".finding-question-segment")].map(segment =>
-      [...segment.children].map(timing));
-    const lines = [...el.querySelectorAll(".finding-question-line")].map(timing);
-    return { segments, lines };
-  });
-  for (let i = 0; i < 2; i++) {
-    const previous = result.segments[i].at(-1), next = result.segments[i + 1][0];
-    expect(next.delay - previous.delay - previous.duration).toBe(1000);
-    const at = previous.delay + previous.duration + 500;
-    const visible = await root(page).evaluate((el, at) => {
-      for (const node of el.querySelectorAll(".finding-question-character,.finding-question-line")) {
-        for (const animation of node.getAnimations()) { animation.pause(); animation.currentTime = at; }
-      }
-      return [...el.querySelectorAll(".finding-question-segment")].map(segment =>
-        [...segment.children].map(n => Number(getComputedStyle(n).opacity)));
-    }, at);
-    expect(visible[i].every(n => n === 1)).toBe(true);
-    expect(visible[i + 1].every(n => n === 0)).toBe(true);
+    }));
+    expect(timings).toHaveLength(groups);
+    timings.forEach((timing, index) => {
+      expect(timing.delay).toBeCloseTo(520 + index * 300, 5);
+      expect(timing.duration).toBe(1350);
+    });
+    await expect(page.locator(".finding-reader-layer")).toHaveAttribute("data-swap", "idle");
+    await sameClock(page, clock);
   }
-  for (const segment of result.segments) for (let i = 1; i < segment.length; i++) {
-    expect(segment[i].delay - segment[i - 1].delay).toBe(175);
-  }
-  const last = result.segments.at(-1).at(-1);
-  expect(result.lines[0].delay - last.delay - last.duration).toBe(325);
-  expect(result.lines[1].delay - result.lines[0].delay).toBe(1900);
+  await close(page);
+  await openFinding(page, 3);
+  const reopenedDelay = await root(page).locator("[data-finding-reveal]").first().evaluate(node => node.getAnimations()[0].effect.getTiming().delay);
+  expect(reopenedDelay).toBe(900);
 });

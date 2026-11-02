@@ -56,14 +56,14 @@ test("normal motion: first visit completes all five pages and replay @journey", 
   await nextFinding(page);
   await expect(page.getByRole("heading", { name: "Harness Self", exact: true })).toBeVisible();
   await nextFinding(page);
-  await expect(page.locator(".finding-question-character").last()).toHaveCSS("opacity", "1", { timeout: 15000 });
+  await expect(page.locator(".finding-question")).toHaveCSS("opacity", "1", { timeout: 15000 });
   await page.locator("#inspiration-text").fill("保留好奇，也留一点空白。\nKeep a little room for tomorrow.");
   await page.locator("#inspiration-text").press("Escape");
   await expect(page.locator(".finding-reader-layer")).toHaveCount(0);
   await expect(page.locator("#finding-toggle-3")).toBeFocused();
   await openFinding(page, 3);
   await expect(page.locator("#inspiration-text")).toHaveValue("保留好奇，也留一点空白。\nKeep a little room for tomorrow.");
-  expect(Number(await page.locator(".finding-question-character").last().evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(.1);
+  expect(Number(await page.locator(".finding-question").evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(.1);
   await page.getByRole("button", { name: "去下一页 →", exact: true }).click();
   await expect(page.locator(".finding-reader-layer")).toBeVisible();
   await scene(page, 5);

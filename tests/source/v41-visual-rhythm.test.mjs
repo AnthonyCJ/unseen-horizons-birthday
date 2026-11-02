@@ -173,10 +173,11 @@ test("locks the revised calm-reading text start times", async () => {
   assert.match(styles, /finale-smile-turn 2160ms 9800ms/);
 });
 
-test("renders content 3 as a top-to-bottom reading sequence with a calm opacity-only question", async () => {
-  const [source, styles] = await Promise.all([
+test("renders content 3 as an intact question in the shared opacity-only sequence", async () => {
+  const [source, styles, reveal] = await Promise.all([
     readFile(experiencePath, "utf8"),
     readFile(stylesPath, "utf8"),
+    readFile(new URL("../../app/FindingContentReveal.tsx", import.meta.url), "utf8"),
   ]);
 
   for (const invariant of [
@@ -184,36 +185,16 @@ test("renders content 3 as a top-to-bottom reading sequence with a calm opacity-
     '"新的一岁里，"',
     '"有没有一个问题，"',
     '"你愿意带着它继续往前走？"',
-    "const FINDING_QUESTION_BASE_DELAY_MS = 2500;",
-    "const FINDING_QUESTION_STEP_MS = 175;",
-    "const FINDING_QUESTION_SENTENCE_PAUSE_MS = 1000;",
-    "const FINDING_QUESTION_AFTER_DELAY_MS = 8300 + 2 * FINDING_QUESTION_SEGMENT_OFFSET_MS;",
-    "const FINDING_QUESTION_CLOSING_DELAY_MS = 10200 + 2 * FINDING_QUESTION_SEGMENT_OFFSET_MS;",
-    "let characterIndex = 0;",
-    "const currentIndex = characterIndex;",
-    "characterIndex += 1;",
-    'data-character-index={currentIndex}',
     'aria-label={FINDING_QUESTION_TEXT}',
   ]) {
     assert.ok(source.includes(invariant), `Missing question invariant: ${invariant}`);
   }
 
   assert.match(styles, /\.finding-question-segment \{[^}]*white-space:\s*nowrap/s);
-  assert.match(styles, /\.finding-reader-layer:is\(\.is-open, \.is-closing\) \.finding-question-line \{[^}]*1500ms[^}]*var\(--finding-line-delay\)/s);
-  assert.match(styles, /\.finding-reader-layer:is\(\.is-open, \.is-closing\) \.finding-question-character \{[^}]*1100ms[^}]*var\(--question-char-delay\)/s);
-  const questionCharacterRule = section(
-    styles,
-    ".finding-reader-layer:is(.is-open, .is-closing) .finding-question-character {",
-    "@keyframes finding-question-line-reveal",
-  );
-  const questionCharacterKeyframes = section(
-    styles,
-    "@keyframes finding-question-character-reveal",
-    ".prompt-tool {",
-  );
-  assert.match(questionCharacterKeyframes, /from \{ opacity:\s*0; \}/);
-  assert.match(questionCharacterKeyframes, /to \{ opacity:\s*1; \}/);
-  assert.doesNotMatch(questionCharacterRule + questionCharacterKeyframes, /transform:|filter:|scale\(/);
+  assert.doesNotMatch(source + styles, /finding-question-character|--question-char-delay|--finding-line-delay/);
+  assert.equal((source.match(/<FindingContentReveal /g) ?? []).length, 3);
+  assert.match(reveal, /animate\(\[\{ opacity: 0 \}, \{ opacity: 1 \}\]/);
+  assert.doesNotMatch(reveal, /transform:|filter:|scale\(/);
   assert.equal((source.match(/className="finding-question-line/g) ?? []).length, 2);
 });
 
@@ -242,7 +223,7 @@ test("keeps the softened 840/780 reader state machine while removing every panel
   assert.doesNotMatch(readerMotion, /scale\(/);
 
   const reducedMotion = section(styles, "@media (prefers-reduced-motion: reduce)", "}",);
-  assert.ok(styles.includes(".finding-question-character, .finding-question-line {\n    opacity: 1;\n    animation: none !important;"));
+  assert.ok(styles.includes('.finding-content-reveal[data-reveal-state="pending"] [data-finding-reveal] { opacity: 1; }'));
   assert.ok(reducedMotion.length > 0);
 });
 

@@ -1158,24 +1158,6 @@ p { margin: 0; font-size: clamp(0.94rem, 1.22vw, 1.12rem); line-height: 1.78; }
 }
 .finding-question-reveal { display: inline; }
 .finding-question-segment { display: inline-block; white-space: nowrap; }
-.finding-question-character { opacity: 0; }
-.finding-question-line { opacity: 0; }
-.finding-reader-layer:is(.is-open, .is-closing) .finding-question-line {
-  animation: finding-question-line-reveal 1500ms var(--finding-line-delay)
-    var(--text-reveal-ease) both;
-}
-.finding-reader-layer:is(.is-open, .is-closing) .finding-question-character {
-  animation: finding-question-character-reveal 1100ms var(--question-char-delay)
-    var(--text-reveal-ease) both;
-}
-@keyframes finding-question-line-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-@keyframes finding-question-character-reveal {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 .prompt-tool {
   display: grid; gap: 0.82rem; margin-top: clamp(1.65rem, 2.8vw, 2.35rem);
   padding: clamp(1rem, 1.6vw, 1.3rem); border: 1px solid rgba(48, 54, 66, 0.14);
@@ -1800,11 +1782,6 @@ p { margin: 0; font-size: clamp(0.94rem, 1.22vw, 1.12rem); line-height: 1.78; }
     animation: none !important;
     transform: none;
     filter: none;
-  }
-  .finding-question-character, .finding-question-line {
-    opacity: 1;
-    animation: none !important;
-    transform: none;
   }
   .finding-reader-header { transition: none !important; animation: none !important; }
   .finding-reader-heading, .finding-reader-scroll {
